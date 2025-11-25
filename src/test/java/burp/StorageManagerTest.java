@@ -21,8 +21,9 @@ class StorageManagerTest {
     @BeforeEach
     void setUp(@TempDir Path tempDir) {
         tempFile = tempDir.resolve("test_attacks.json").toFile();
+        File configFile = tempDir.resolve("test_config.json").toFile();
         mockStderr = new PrintWriter(System.err); // Use real PrintWriter to avoid Mockito issues
-        storageManager = new StorageManager(tempFile.getAbsolutePath(), mockStderr);
+        storageManager = new StorageManager(tempFile.getAbsolutePath(), configFile.getAbsolutePath(), mockStderr);
     }
 
     @Test

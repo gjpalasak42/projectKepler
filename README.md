@@ -51,6 +51,13 @@
     *   **Notes**: Add any observations or proof of concept details.
 4.  Click **Save**.
 
+### Configuration
+1.  Go to the **Settings** tab.
+2.  **Tester Name**: Set your name (default: "Tester"). This will be saved with every attack you record.
+3.  **Categories**: Edit the list of available categories (one per line).
+4.  **Statuses**: Edit the list of available statuses (one per line).
+5.  Click **Save Settings** to apply changes.
+
 ### Viewing and Managing History
 1.  Go to the **Attack History** tab in the main Burp menu.
 2.  Use the table to browse your recorded attacks. Click column headers to sort.

@@ -11,11 +11,13 @@ import java.util.List;
 
 public class StorageManager {
     private final File storageFile;
+    private final File configFile;
     private final Gson gson;
     private final PrintWriter stderr;
 
-    public StorageManager(String filePath, PrintWriter stderr) {
-        this.storageFile = new File(filePath);
+    public StorageManager(String storagePath, String configPath, PrintWriter stderr) {
+        this.storageFile = new File(storagePath);
+        this.configFile = new File(configPath);
         this.stderr = stderr;
         this.gson = new GsonBuilder().setPrettyPrinting().create();
     }
@@ -48,6 +50,30 @@ public class StorageManager {
         } catch (IOException e) {
             stderr.println("Error saving attacks: " + e.getMessage());
             e.printStackTrace(stderr);
+        }
+    }
+
+    public synchronized void saveConfig(ExtensionConfig config) {
+        try (Writer writer = new FileWriter(configFile)) {
+            gson.toJson(config, writer);
+        } catch (IOException e) {
+            stderr.println("Error saving config: " + e.getMessage());
+            e.printStackTrace(stderr);
+        }
+    }
+
+    public synchronized ExtensionConfig loadConfig() {
+        if (!configFile.exists()) {
+            return new ExtensionConfig(); // Return defaults
+        }
+
+        try (Reader reader = new FileReader(configFile)) {
+            ExtensionConfig config = gson.fromJson(reader, ExtensionConfig.class);
+            return config != null ? config : new ExtensionConfig();
+        } catch (IOException e) {
+            stderr.println("Error loading config: " + e.getMessage());
+            e.printStackTrace(stderr);
+            return new ExtensionConfig();
         }
     }
 }

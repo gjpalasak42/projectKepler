@@ -32,7 +32,8 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
 
         // Initialize Storage
         String storagePath = System.getProperty("user.home") + "/.burp_attack_history.json";
-        this.storageManager = new StorageManager(storagePath, stderr);
+        String configPath = System.getProperty("user.home") + "/.burp_attack_history_config.json";
+        this.storageManager = new StorageManager(storagePath, configPath, stderr);
 
         // Register Context Menu
         callbacks.registerContextMenuFactory(this);
@@ -46,6 +47,10 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
 
     private void initializeUI() {
         mainPanel = new JPanel(new BorderLayout());
+        JTabbedPane mainTabs = new JTabbedPane();
+
+        // --- Tab 1: Attack History ---
+        JPanel historyPanel = new JPanel(new BorderLayout());
 
         // Table Setup
         tableModel = new AttackTableModel();
@@ -78,12 +83,12 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
         splitPane.setBottomComponent(messageTabs);
         splitPane.setResizeWeight(0.5);
 
-        mainPanel.add(splitPane, BorderLayout.CENTER);
+        historyPanel.add(splitPane, BorderLayout.CENTER);
         
         // Refresh Button
         JButton refreshButton = new JButton("Refresh");
         refreshButton.addActionListener(e -> refreshTable());
-        mainPanel.add(refreshButton, BorderLayout.NORTH);
+        historyPanel.add(refreshButton, BorderLayout.NORTH);
 
         // Selection Listener
         attackTable.getSelectionModel().addListSelectionListener(e -> {
@@ -118,6 +123,14 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
             }
         });
 
+        mainTabs.addTab("Attack History", historyPanel);
+
+        // --- Tab 2: Settings ---
+        SettingsPanel settingsPanel = new SettingsPanel(storageManager);
+        mainTabs.addTab("Settings", settingsPanel);
+
+        mainPanel.add(mainTabs, BorderLayout.CENTER);
+
         callbacks.addSuiteTab(BurpExtender.this);
     }
 
@@ -137,9 +150,12 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
             if (messages != null && messages.length > 0) {
                 // Show Dialog
                 SwingUtilities.invokeLater(() -> {
+                    // Load Config
+                    ExtensionConfig config = storageManager.loadConfig();
+
                     // Find parent window for dialog
                     Frame parent = JOptionPane.getFrameForComponent(getUiComponent());
-                    SaveAttackDialog dialog = new SaveAttackDialog(parent);
+                    SaveAttackDialog dialog = new SaveAttackDialog(parent, config);
                     dialog.setVisible(true);
 
                     if (dialog.isSaved()) {
@@ -147,7 +163,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
                             AttackEntry entry = new AttackEntry(
                                 message, 
                                 helpers, 
-                                "Tester", // TODO: Make configurable
+                                config.getTesterName(), 
                                 dialog.getCategory(), 
                                 dialog.getStatus(), 
                                 dialog.getNotes()

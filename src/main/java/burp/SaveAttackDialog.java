@@ -9,23 +9,14 @@ public class SaveAttackDialog extends JDialog {
     private JTextArea notesArea;
     private boolean saved = false;
 
-    // Predefined categories
-    private static final String[] DEFAULT_CATEGORIES = {
-        "SQL Injection", "XSS", "CSRF", "IDOR", "Auth Bypass", "RCE", "Information Disclosure", "Other"
-    };
-
-    private static final String[] STATUS_OPTIONS = {
-        "Vulnerable", "Safe", "Needs Investigation"
-    };
-
-    public SaveAttackDialog(Frame owner) {
+    public SaveAttackDialog(Frame owner, ExtensionConfig config) {
         super(owner, "Save Attack to History", true);
-        initComponents();
+        initComponents(config);
         pack();
         setLocationRelativeTo(owner);
     }
 
-    private void initComponents() {
+    private void initComponents(ExtensionConfig config) {
         setLayout(new BorderLayout(10, 10));
         JPanel formPanel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
@@ -37,7 +28,7 @@ public class SaveAttackDialog extends JDialog {
         formPanel.add(new JLabel("Category:"), gbc);
         
         gbc.gridx = 1;
-        categoryComboBox = new JComboBox<>(DEFAULT_CATEGORIES);
+        categoryComboBox = new JComboBox<>(config.getCategories().toArray(new String[0]));
         categoryComboBox.setEditable(true); // Allow custom categories
         formPanel.add(categoryComboBox, gbc);
 
@@ -46,7 +37,7 @@ public class SaveAttackDialog extends JDialog {
         formPanel.add(new JLabel("Status:"), gbc);
 
         gbc.gridx = 1;
-        statusComboBox = new JComboBox<>(STATUS_OPTIONS);
+        statusComboBox = new JComboBox<>(config.getStatuses().toArray(new String[0]));
         formPanel.add(statusComboBox, gbc);
 
         // Notes
