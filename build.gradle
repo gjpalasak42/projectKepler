@@ -1,0 +1,31 @@
+plugins {
+    id 'java'
+}
+
+group 'com.burpextension'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Burp Extender API
+    implementation 'net.portswigger.burp.extender:burp-extender-api:2.3'
+    
+    // Gson for JSON storage
+    implementation 'com.google.code.gson:gson:2.10.1'
+    
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+jar {
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
