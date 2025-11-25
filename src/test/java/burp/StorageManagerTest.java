@@ -1,6 +1,5 @@
 package burp;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -22,7 +21,7 @@ class StorageManagerTest {
     @BeforeEach
     void setUp(@TempDir Path tempDir) {
         tempFile = tempDir.resolve("test_attacks.json").toFile();
-        mockStderr = mock(PrintWriter.class);
+        mockStderr = new PrintWriter(System.err); // Use real PrintWriter to avoid Mockito issues
         storageManager = new StorageManager(tempFile.getAbsolutePath(), mockStderr);
     }
 

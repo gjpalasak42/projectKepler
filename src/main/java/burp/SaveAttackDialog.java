@@ -2,8 +2,6 @@ package burp;
 
 import javax.swing.*;
 import java.awt.*;
-import javax.swing.*;
-import java.awt.*;
 
 public class SaveAttackDialog extends JDialog {
     private JComboBox<String> categoryComboBox;

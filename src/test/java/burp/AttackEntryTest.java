@@ -1,7 +1,6 @@
 package burp;
 
 import org.junit.jupiter.api.Test;
-import java.net.URL;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -29,7 +28,7 @@ class AttackEntryTest {
         
         when(helpers.analyzeRequest(messageInfo)).thenReturn(requestInfo);
         when(requestInfo.getMethod()).thenReturn("GET");
-        when(requestInfo.getUrl()).thenReturn(new URL("https://example.com/login"));
+        when(requestInfo.getUrl()).thenReturn(java.net.URI.create("https://example.com/login").toURL());
 
         // Execute
         AttackEntry entry = new AttackEntry(messageInfo, helpers, "Tester1", "XSS", "Safe", "Notes");

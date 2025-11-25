@@ -1,7 +1,6 @@
 package burp;
 
 import javax.swing.*;
-import javax.swing.*;
 import java.awt.*;
 import java.io.PrintWriter;
 import java.util.ArrayList;
