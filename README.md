@@ -1,7 +1,10 @@
-# Attack History Recorder - Burp Suite Extension
+# Project Kepler (Attack History Recorder)
+
+> [!IMPORTANT]
+> **Disclosure**: This project is highly AI Driven and has not been fully vetted for production deployment.
 
 ## Overview
-**Attack History Recorder** is a Burp Suite extension designed to help penetration testers document and track their manual testing efforts. It allows you to "record" specific requests, categorize them (e.g., SQLi, XSS), assign a status (Vulnerable, Safe), and add notes. This prevents redundant testing and facilitates knowledge sharing within teams.
+**Project Kepler** is a Burp Suite extension designed to help penetration testers catalog their attacks and document manual testing efforts. It allows you to "record" specific requests, categorize them (e.g., SQLi, XSS), assign a status (Vulnerable, Safe), and add notes. This prevents redundant testing and facilitates knowledge sharing within teams.
 
 ## Features
 *   **Context Menu Integration**: Right-click any request in Proxy, Repeater, or Target to "Save to Attack History".
