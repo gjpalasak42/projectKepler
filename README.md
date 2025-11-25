@@ -1,7 +1,7 @@
 # Project Kepler (Attack History Recorder)
 
 > [!IMPORTANT]
-> **Disclosure**: This project is highly AI Driven and has not been fully vetted for production deployment.
+> **Disclosure**: This project is AI Driven and has the full codebase not been fully vetted for production deployment.
 
 ## Overview
 **Project Kepler** is a Burp Suite extension designed to help penetration testers catalog their attacks and document manual testing efforts. It allows you to "record" specific requests, categorize them (e.g., SQLi, XSS), assign a status (Vulnerable, Safe), and add notes. This prevents redundant testing and facilitates knowledge sharing within teams.
