@@ -65,7 +65,7 @@
 
 ## Security Considerations
 
-*   **Local Storage**: Attack history is stored in a local JSON file (`~/.burp_attack_history.json`). Ensure appropriate file permissions on shared systems.
+*   **Local Storage**: Attack history is stored in a local JSON file named `.burp_attack_history.json` in your user's home directory. Ensure appropriate file permissions on shared systems.
 *   **Sensitive Data**: The extension stores full HTTP requests and responses, which may contain credentials, tokens, or other sensitive information. Handle the history file with care.
 *   **Scope**: This extension is designed for authorized penetration testing activities only. Always obtain proper authorization before testing.
 
