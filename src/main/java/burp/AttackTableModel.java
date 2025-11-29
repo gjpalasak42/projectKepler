@@ -1,15 +1,17 @@
 package burp;
 
 import javax.swing.table.AbstractTableModel;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
 public class AttackTableModel extends AbstractTableModel {
     private List<AttackEntry> attacks;
     private final String[] columnNames = {"Time", "Category", "Method", "URL", "Status", "Tester"};
-    private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter DATE_FORMATTER = 
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
 
     public AttackTableModel() {
         this.attacks = new ArrayList<>();
@@ -46,7 +48,7 @@ public class AttackTableModel extends AbstractTableModel {
     public Object getValueAt(int rowIndex, int columnIndex) {
         AttackEntry attack = attacks.get(rowIndex);
         switch (columnIndex) {
-            case 0: return dateFormat.format(new Date(attack.getTimestamp()));
+            case 0: return DATE_FORMATTER.format(Instant.ofEpochMilli(attack.getTimestamp()));
             case 1: return attack.getCategory();
             case 2: return attack.getMethod();
             case 3: return attack.getUrl();

@@ -1,7 +1,7 @@
 # Project Kepler (Attack History Recorder)
 
 > [!IMPORTANT]
-> **Disclosure**: This project is AI Driven and has the full codebase not been fully vetted for production deployment.
+> **Disclosure**: This project is AI-driven and the full codebase has not been fully vetted for production deployment.
 
 ## Overview
 **Project Kepler** is a Burp Suite extension designed to help penetration testers catalog their attacks and document manual testing efforts. It allows you to "record" specific requests, categorize them (e.g., SQLi, XSS), assign a status (Vulnerable, Safe), and add notes. This prevents redundant testing and facilitates knowledge sharing within teams.
@@ -63,6 +63,12 @@
 2.  Use the table to browse your recorded attacks. Click column headers to sort.
 3.  Select a row to view the **Request**, **Response**, and **Details** (Notes) in the bottom pane.
 
+## Security Considerations
+
+*   **Local Storage**: Attack history is stored in a local JSON file (`~/.burp_attack_history.json`). Ensure appropriate file permissions on shared systems.
+*   **Sensitive Data**: The extension stores full HTTP requests and responses, which may contain credentials, tokens, or other sensitive information. Handle the history file with care.
+*   **Scope**: This extension is designed for authorized penetration testing activities only. Always obtain proper authorization before testing.
+
 ## Future Improvements (Roadmap)
 *   **Export/Import**: Share attack histories with team members via JSON/XML export.
 *   **Advanced Filtering**: Filter the history table by specific categories or date ranges.
@@ -71,4 +77,4 @@
 *   **Project Integration**: Option to save data within the Burp project file instead of a global JSON file.
 
 ## License
-[License Name]
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
