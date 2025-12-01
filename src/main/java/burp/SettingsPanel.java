@@ -51,9 +51,19 @@ public class SettingsPanel extends JPanel {
 
         // Buttons
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        
+        JButton exportButton = new JButton("Export History");
+        exportButton.addActionListener(e -> exportHistory());
+        buttonPanel.add(exportButton);
+
+        JButton importButton = new JButton("Import History");
+        importButton.addActionListener(e -> importHistory());
+        buttonPanel.add(importButton);
+
         JButton saveButton = new JButton("Save Settings");
         saveButton.addActionListener(e -> saveSettings());
         buttonPanel.add(saveButton);
+        
         add(buttonPanel, BorderLayout.SOUTH);
 
         // Load initial values
@@ -85,5 +95,40 @@ public class SettingsPanel extends JPanel {
 
         storageManager.saveConfig(config);
         JOptionPane.showMessageDialog(this, "Settings Saved!", "Success", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void exportHistory() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Export Attack History");
+        int userSelection = fileChooser.showSaveDialog(this);
+
+        if (userSelection == JFileChooser.APPROVE_OPTION) {
+            java.io.File fileToSave = fileChooser.getSelectedFile();
+            if (!fileToSave.getName().toLowerCase().endsWith(".json")) {
+                fileToSave = new java.io.File(fileToSave.getAbsolutePath() + ".json");
+            }
+            try {
+                storageManager.exportAttacks(fileToSave);
+                JOptionPane.showMessageDialog(this, "History exported successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(this, "Error exporting history: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void importHistory() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Import Attack History");
+        int userSelection = fileChooser.showOpenDialog(this);
+
+        if (userSelection == JFileChooser.APPROVE_OPTION) {
+            java.io.File fileToOpen = fileChooser.getSelectedFile();
+            try {
+                storageManager.importAttacks(fileToOpen);
+                JOptionPane.showMessageDialog(this, "History imported successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(this, "Error importing history: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
     }
 }

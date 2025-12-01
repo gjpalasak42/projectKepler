@@ -5,6 +5,7 @@ import java.awt.*;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, IMessageEditorController {
     private IBurpExtenderCallbacks callbacks;
@@ -21,6 +22,10 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
     private IMessageEditor responseViewer;
     private IHttpRequestResponse currentMessage;
     private JTextArea notesDetailArea;
+    private JToggleButton trashToggle;
+    private JButton deleteButton;
+    private JButton restoreButton;
+    private JButton emptyTrashButton;
 
 
     @Override
@@ -39,7 +44,10 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
         callbacks.registerContextMenuFactory(this);
 
         // Initialize UI
-        SwingUtilities.invokeLater(this::initializeUI);
+        SwingUtilities.invokeLater(() -> {
+            initializeUI();
+            callbacks.addSuiteTab(BurpExtender.this);
+        });
 
         stdout.println("Attack History Recorder Loaded.");
         stdout.println("Saving to: " + storagePath);
@@ -52,10 +60,62 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
         // --- Tab 1: Attack History ---
         JPanel historyPanel = new JPanel(new BorderLayout());
 
+        // Toolbar
+        JToolBar toolbar = new JToolBar();
+        toolbar.setFloatable(false);
+        
+        JButton refreshButton = new JButton("Refresh");
+        refreshButton.addActionListener(e -> refreshTable());
+        toolbar.add(refreshButton);
+        
+        toolbar.addSeparator();
+        
+        trashToggle = new JToggleButton("Show Trash");
+        trashToggle.addActionListener(e -> {
+            tableModel.setShowDeleted(trashToggle.isSelected());
+            updateToolbarState();
+        });
+        toolbar.add(trashToggle);
+        
+        toolbar.addSeparator();
+        
+        deleteButton = new JButton("Delete Selected");
+        deleteButton.addActionListener(e -> deleteSelected());
+        toolbar.add(deleteButton);
+        
+        restoreButton = new JButton("Restore Selected");
+        restoreButton.addActionListener(e -> restoreSelected());
+        restoreButton.setVisible(false); // Hidden by default
+        toolbar.add(restoreButton);
+        
+        emptyTrashButton = new JButton("Empty Trash");
+        emptyTrashButton.addActionListener(e -> emptyTrash());
+        emptyTrashButton.setVisible(false); // Hidden by default
+        toolbar.add(emptyTrashButton);
+
+        historyPanel.add(toolbar, BorderLayout.NORTH);
+
         // Table Setup
         tableModel = new AttackTableModel();
         attackTable = new JTable(tableModel);
         attackTable.setAutoCreateRowSorter(true);
+        
+        // Set checkbox column width and header
+        attackTable.getColumnModel().getColumn(0).setMaxWidth(30);
+        attackTable.getColumnModel().getColumn(0).setMinWidth(30);
+        attackTable.getColumnModel().getColumn(0).setHeaderRenderer(new CheckBoxHeader(attackTable, 0));
+        
+        // Context Menu for Table
+        JPopupMenu tablePopup = new JPopupMenu();
+        JMenuItem deleteItem = new JMenuItem("Delete");
+        deleteItem.addActionListener(e -> deleteSelected());
+        tablePopup.add(deleteItem);
+        
+        JMenuItem restoreItem = new JMenuItem("Restore");
+        restoreItem.addActionListener(e -> restoreSelected());
+        tablePopup.add(restoreItem);
+
+        attackTable.setComponentPopupMenu(tablePopup);
         
         // Load initial data
         refreshTable();
@@ -85,11 +145,6 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
 
         historyPanel.add(splitPane, BorderLayout.CENTER);
         
-        // Refresh Button
-        JButton refreshButton = new JButton("Refresh");
-        refreshButton.addActionListener(e -> refreshTable());
-        historyPanel.add(refreshButton, BorderLayout.NORTH);
-
         // Selection Listener
         attackTable.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
@@ -98,7 +153,6 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
                     int modelRow = attackTable.convertRowIndexToModel(selectedRow);
                     AttackEntry entry = tableModel.getAttackAt(modelRow);
                     if (entry != null) {
-                        // currentMessage = callbacks.getHelpers().buildHttpMessage(entry.getRequest(), entry.getResponse()); // Incorrect and unnecessary
                         requestViewer.setMessage(entry.getRequest(), true);
                         responseViewer.setMessage(entry.getResponse(), false);
                         notesDetailArea.setText("Category: " + entry.getCategory() + "\n" +
@@ -131,12 +185,164 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
 
         mainPanel.add(mainTabs, BorderLayout.CENTER);
 
-        callbacks.addSuiteTab(BurpExtender.this);
+        mainPanel.add(mainTabs, BorderLayout.CENTER);
+    }
+    
+    private void updateToolbarState() {
+        boolean isTrashMode = trashToggle.isSelected();
+        deleteButton.setVisible(!isTrashMode);
+        restoreButton.setVisible(isTrashMode);
+        emptyTrashButton.setVisible(isTrashMode);
+        
+        // Update context menu items visibility if possible, or just handle in logic
+        // For simplicity, we'll leave them but they might not do anything if invalid
     }
 
     private void refreshTable() {
-        List<AttackEntry> attacks = storageManager.loadAttacks();
-        tableModel.setAttacks(attacks);
+        new SwingWorker<List<AttackEntry>, Void>() {
+            @Override
+            protected List<AttackEntry> doInBackground() throws Exception {
+                return storageManager.loadAttacks();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    List<AttackEntry> attacks = get();
+                    tableModel.setAttacks(attacks);
+                } catch (Exception e) {
+                    stderr.println("Error refreshing table: " + e.getMessage());
+                    e.printStackTrace(stderr);
+                }
+            }
+        }.execute();
+    }
+    
+    private void deleteSelected() {
+        Set<String> selectedIds = tableModel.getSelectedIds();
+        int[] selectedRows = attackTable.getSelectedRows();
+        for (int row : selectedRows) {
+            int modelRow = attackTable.convertRowIndexToModel(row);
+            AttackEntry entry = tableModel.getAttackAt(modelRow);
+            if (entry != null) {
+                selectedIds.add(entry.getId());
+            }
+        }
+
+        if (selectedIds.isEmpty()) return;
+
+        new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                List<AttackEntry> allAttacks = storageManager.loadAttacks();
+                boolean changed = false;
+                
+                if (trashToggle.isSelected()) {
+                     // Permanent deletion
+                     int initialSize = allAttacks.size();
+                     allAttacks.removeIf(a -> selectedIds.contains(a.getId()));
+                     if (allAttacks.size() < initialSize) changed = true;
+                } else {
+                    for (AttackEntry attack : allAttacks) {
+                        if (selectedIds.contains(attack.getId())) {
+                            attack.setDeleted(true);
+                            changed = true;
+                        }
+                    }
+                }
+
+                if (changed) {
+                     storageManager.overwriteAttacks(allAttacks); 
+                }
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    get(); // Check for exceptions
+                    refreshTable();
+                } catch (Exception e) {
+                    stderr.println("Error deleting attacks: " + e.getMessage());
+                    e.printStackTrace(stderr);
+                }
+            }
+        }.execute();
+    }
+
+    private void restoreSelected() {
+        Set<String> selectedIds = tableModel.getSelectedIds();
+        int[] selectedRows = attackTable.getSelectedRows();
+        for (int row : selectedRows) {
+            int modelRow = attackTable.convertRowIndexToModel(row);
+            AttackEntry entry = tableModel.getAttackAt(modelRow);
+            if (entry != null) {
+                selectedIds.add(entry.getId());
+            }
+        }
+
+        if (selectedIds.isEmpty()) return;
+
+        new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                List<AttackEntry> allAttacks = storageManager.loadAttacks();
+                boolean changed = false;
+                
+                for (AttackEntry attack : allAttacks) {
+                    if (selectedIds.contains(attack.getId())) {
+                        attack.setDeleted(false);
+                        changed = true;
+                    }
+                }
+
+                if (changed) {
+                    storageManager.overwriteAttacks(allAttacks);
+                }
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    get();
+                    refreshTable();
+                } catch (Exception e) {
+                    stderr.println("Error restoring attacks: " + e.getMessage());
+                    e.printStackTrace(stderr);
+                }
+            }
+        }.execute();
+    }
+    
+    private void emptyTrash() {
+        int confirm = JOptionPane.showConfirmDialog(mainPanel, 
+            "Are you sure you want to permanently delete all items in the trash?", 
+            "Empty Trash", 
+            JOptionPane.YES_NO_OPTION);
+            
+        if (confirm == JOptionPane.YES_OPTION) {
+            new SwingWorker<Void, Void>() {
+                @Override
+                protected Void doInBackground() throws Exception {
+                    List<AttackEntry> allAttacks = storageManager.loadAttacks();
+                    allAttacks.removeIf(AttackEntry::isDeleted);
+                    storageManager.overwriteAttacks(allAttacks);
+                    return null;
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        get();
+                        refreshTable();
+                    } catch (Exception e) {
+                        stderr.println("Error emptying trash: " + e.getMessage());
+                        e.printStackTrace(stderr);
+                    }
+                }
+            }.execute();
+        }
     }
 
 
@@ -207,4 +413,3 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
         return currentMessage != null ? currentMessage.getResponse() : null;
     }
 }
-

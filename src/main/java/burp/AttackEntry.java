@@ -22,6 +22,8 @@ public class AttackEntry {
     private String notes;
 
     public AttackEntry(IHttpRequestResponse messageInfo, IExtensionHelpers helpers, String testerName, String category, String status, String notes) {
+        this.id = java.util.UUID.randomUUID().toString();
+        this.deleted = false;
         this.timestamp = System.currentTimeMillis();
         this.testerName = testerName;
         this.category = category;
@@ -70,4 +72,19 @@ public class AttackEntry {
     public void setCategory(String category) { this.category = category; }
     public void setStatus(String status) { this.status = status; }
     public void setNotes(String notes) { this.notes = notes; }
+
+    // Deletion Logic
+    private String id;
+    private boolean deleted;
+
+    public String getId() { return id; }
+    public boolean isDeleted() { return deleted; }
+    public void setDeleted(boolean deleted) { this.deleted = deleted; }
+
+    // Ensure ID is initialized if not present (for backward compatibility or new entries)
+    public void ensureId() {
+        if (this.id == null || this.id.isEmpty()) {
+            this.id = java.util.UUID.randomUUID().toString();
+        }
+    }
 }

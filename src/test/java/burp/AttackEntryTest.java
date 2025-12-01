@@ -45,4 +45,26 @@ class AttackEntryTest {
         assertArrayEquals(requestBytes, entry.getRequest());
         assertArrayEquals(responseBytes, entry.getResponse());
     }
+
+
+    @Test
+    void testIdAndDeletion() {
+        // Mocks (minimal needed for constructor)
+        IHttpRequestResponse messageInfo = mock(IHttpRequestResponse.class);
+        IExtensionHelpers helpers = mock(IExtensionHelpers.class);
+        
+        // Execute
+        AttackEntry entry = new AttackEntry(messageInfo, helpers, "Tester1", "XSS", "Safe", "Notes");
+
+        // Verify ID generation
+        assertNotNull(entry.getId());
+        assertFalse(entry.getId().isEmpty());
+        
+        // Verify Deletion Default
+        assertFalse(entry.isDeleted());
+        
+        // Verify Deletion Toggle
+        entry.setDeleted(true);
+        assertTrue(entry.isDeleted());
+    }
 }
