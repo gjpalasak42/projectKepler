@@ -121,4 +121,33 @@ class StorageManagerTest {
         assertEquals(1, reloaded.size());
         assertEquals(id, reloaded.get(0).getId());
     }
+
+    @Test
+    void testImportPreventsDuplicates() throws Exception {
+        // First import a file with a specific ID
+        File importFile = new File(tempFile.getParent(), "import.json");
+        String testId = "test-id-12345";
+        try (PrintWriter writer = new PrintWriter(importFile)) {
+            writer.println("[{\"id\":\"" + testId + "\",\"host\":\"example.com\",\"port\":80,\"protocol\":\"http\",\"method\":\"GET\",\"url\":\"http://example.com/\",\"timestamp\":1234567890,\"testerName\":\"Importer1\",\"category\":\"XSS\",\"status\":\"Fixed\",\"notes\":\"First import\"}]");
+        }
+        
+        storageManager.importAttacks(importFile);
+        
+        // Verify first import succeeded
+        List<AttackEntry> afterFirstImport = storageManager.loadAttacks();
+        assertEquals(1, afterFirstImport.size());
+        assertEquals("Importer1", afterFirstImport.get(0).getTesterName());
+        
+        // Import the same file again (duplicate ID)
+        try (PrintWriter writer = new PrintWriter(importFile)) {
+            writer.println("[{\"id\":\"" + testId + "\",\"host\":\"example.com\",\"port\":80,\"protocol\":\"http\",\"method\":\"GET\",\"url\":\"http://example.com/\",\"timestamp\":1234567890,\"testerName\":\"Importer2\",\"category\":\"XSS\",\"status\":\"Fixed\",\"notes\":\"Second import - should be skipped\"}]");
+        }
+        
+        storageManager.importAttacks(importFile);
+        
+        // Verify duplicate was not added
+        List<AttackEntry> afterSecondImport = storageManager.loadAttacks();
+        assertEquals(1, afterSecondImport.size());
+        assertEquals("Importer1", afterSecondImport.get(0).getTesterName()); // Should still be the first import
+    }
 }

@@ -218,14 +218,6 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
     
     private void deleteSelected() {
         Set<String> selectedIds = tableModel.getSelectedIds();
-        int[] selectedRows = attackTable.getSelectedRows();
-        for (int row : selectedRows) {
-            int modelRow = attackTable.convertRowIndexToModel(row);
-            AttackEntry entry = tableModel.getAttackAt(modelRow);
-            if (entry != null) {
-                selectedIds.add(entry.getId());
-            }
-        }
 
         if (selectedIds.isEmpty()) return;
 
@@ -249,14 +241,6 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
 
     private void restoreSelected() {
         Set<String> selectedIds = tableModel.getSelectedIds();
-        int[] selectedRows = attackTable.getSelectedRows();
-        for (int row : selectedRows) {
-            int modelRow = attackTable.convertRowIndexToModel(row);
-            AttackEntry entry = tableModel.getAttackAt(modelRow);
-            if (entry != null) {
-                selectedIds.add(entry.getId());
-            }
-        }
 
         if (selectedIds.isEmpty()) return;
 
