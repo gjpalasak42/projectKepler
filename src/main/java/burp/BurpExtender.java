@@ -47,6 +47,8 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
         SwingUtilities.invokeLater(() -> {
             initializeUI();
             callbacks.addSuiteTab(BurpExtender.this);
+            // Load data after UI is fully initialized and visible
+            refreshTable();
         });
 
         stdout.println("Attack History Recorder Loaded.");
@@ -117,8 +119,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
 
         attackTable.setComponentPopupMenu(tablePopup);
         
-        // Load initial data
-        refreshTable();
+        // Defer loading data until after UI is fully initialized
 
         // Request/Response Viewers
         requestViewer = callbacks.createMessageEditor(this, false);
@@ -182,8 +183,6 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
         // --- Tab 2: Settings ---
         SettingsPanel settingsPanel = new SettingsPanel(storageManager);
         mainTabs.addTab("Settings", settingsPanel);
-
-        mainPanel.add(mainTabs, BorderLayout.CENTER);
 
         mainPanel.add(mainTabs, BorderLayout.CENTER);
     }
