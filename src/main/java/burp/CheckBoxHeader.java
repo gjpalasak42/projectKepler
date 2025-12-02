@@ -38,8 +38,10 @@ public class CheckBoxHeader extends JCheckBox implements TableCellRenderer {
             setFont(header.getFont());
         }
         
-        // Set state based on value (which should be boolean)
-        setSelected((value != null && (Boolean) value));
+        // Set state based on whether all items are selected
+        if (table.getModel() instanceof AttackTableModel) {
+            setSelected(((AttackTableModel) table.getModel()).isAllSelected());
+        }
         
         // Add a border to look like a header
         setBorder(UIManager.getBorder("TableHeader.cellBorder"));
