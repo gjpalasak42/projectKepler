@@ -241,29 +241,9 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
         }
         
         backgroundExecutor.execute(() -> {
-            List<AttackEntry> allAttacks = storageManager.loadAttacks();
-            boolean changed = false;
-            
-            if (isTrashMode) {
-                 // Permanent deletion
-                 int initialSize = allAttacks.size();
-                 allAttacks.removeIf(a -> selectedIds.contains(a.getId()));
-                 if (allAttacks.size() < initialSize) changed = true;
-            } else {
-                for (AttackEntry attack : allAttacks) {
-                    if (selectedIds.contains(attack.getId())) {
-                        attack.setDeleted(true);
-                        changed = true;
-                    }
-                }
-            }
-
-            if (changed) {
-                 storageManager.overwriteAttacks(allAttacks); 
-            }
-            
+            List<AttackEntry> updatedAttacks = storageManager.deleteAttacks(selectedIds, isTrashMode);
             // Refresh UI on the EDT
-            refreshTable();
+            SwingUtilities.invokeLater(() -> tableModel.setAttacks(updatedAttacks));
         });
     }
 
@@ -281,22 +261,9 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
         if (selectedIds.isEmpty()) return;
 
         backgroundExecutor.execute(() -> {
-            List<AttackEntry> allAttacks = storageManager.loadAttacks();
-            boolean changed = false;
-            
-            for (AttackEntry attack : allAttacks) {
-                if (selectedIds.contains(attack.getId())) {
-                    attack.setDeleted(false);
-                    changed = true;
-                }
-            }
-
-            if (changed) {
-                storageManager.overwriteAttacks(allAttacks);
-            }
-            
+            List<AttackEntry> updatedAttacks = storageManager.restoreAttacks(selectedIds);
             // Refresh UI on the EDT
-            refreshTable();
+            SwingUtilities.invokeLater(() -> tableModel.setAttacks(updatedAttacks));
         });
     }
     
@@ -308,12 +275,9 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
             
         if (confirm == JOptionPane.YES_OPTION) {
             backgroundExecutor.execute(() -> {
-                List<AttackEntry> allAttacks = storageManager.loadAttacks();
-                allAttacks.removeIf(AttackEntry::isDeleted);
-                storageManager.overwriteAttacks(allAttacks);
-                
+                List<AttackEntry> updatedAttacks = storageManager.emptyTrash();
                 // Refresh UI on the EDT
-                refreshTable();
+                SwingUtilities.invokeLater(() -> tableModel.setAttacks(updatedAttacks));
             });
         }
     }

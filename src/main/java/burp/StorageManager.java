@@ -8,6 +8,7 @@ import java.io.*;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public class StorageManager {
     private final File storageFile;
@@ -77,12 +78,65 @@ public class StorageManager {
         saveAll(attacks);
     }
 
+    public synchronized List<AttackEntry> deleteAttacks(Set<String> ids, boolean permanent) {
+        List<AttackEntry> allAttacks = loadAttacks();
+        boolean changed = false;
+
+        if (permanent) {
+            int initialSize = allAttacks.size();
+            allAttacks.removeIf(a -> ids.contains(a.getId()));
+            if (allAttacks.size() < initialSize) changed = true;
+        } else {
+            for (AttackEntry attack : allAttacks) {
+                if (ids.contains(attack.getId())) {
+                    attack.setDeleted(true);
+                    changed = true;
+                }
+            }
+        }
+
+        if (changed) {
+            saveAll(allAttacks);
+        }
+        return allAttacks;
+    }
+
+    public synchronized List<AttackEntry> restoreAttacks(Set<String> ids) {
+        List<AttackEntry> allAttacks = loadAttacks();
+        boolean changed = false;
+
+        for (AttackEntry attack : allAttacks) {
+            if (ids.contains(attack.getId())) {
+                attack.setDeleted(false);
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            saveAll(allAttacks);
+        }
+        return allAttacks;
+    }
+
+    public synchronized List<AttackEntry> emptyTrash() {
+        List<AttackEntry> allAttacks = loadAttacks();
+        int initialSize = allAttacks.size();
+        allAttacks.removeIf(AttackEntry::isDeleted);
+        
+        if (allAttacks.size() < initialSize) {
+            saveAll(allAttacks);
+        }
+        return allAttacks;
+    }
+
     private void saveAll(List<AttackEntry> attacks) {
         try (Writer writer = new FileWriter(storageFile)) {
             gson.toJson(attacks, writer);
+            lastLoadedTime = storageFile.lastModified();
+            cachedAttacks = new ArrayList<>(attacks); // Update cache
         } catch (IOException e) {
-            stderr.println("Error saving attacks: " + e.getMessage());
-            e.printStackTrace(stderr);
+            // stderr.println("Error saving attacks: " + e.getMessage());
+            // e.printStackTrace(stderr);
         }
     }
 
