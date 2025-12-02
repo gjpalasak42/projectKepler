@@ -10,6 +10,7 @@ import java.awt.event.MouseEvent;
 public class CheckBoxHeader extends JCheckBox implements TableCellRenderer {
     private final JTable table;
     private final int targetColumnIndex;
+    private boolean listenerInitialized = false;
 
     public CheckBoxHeader(JTable table, int targetColumnIndex) {
         this.table = table;
@@ -17,14 +18,21 @@ public class CheckBoxHeader extends JCheckBox implements TableCellRenderer {
         this.setHorizontalAlignment(JLabel.CENTER);
         this.setOpaque(true); // Make sure background is painted
         
-        // Add mouse listener to table header
-        JTableHeader header = table.getTableHeader();
-        header.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                handleClick(e);
-            }
-        });
+        // Add mouse listener to table header only once per instance
+        initMouseListener();
+    }
+    
+    private void initMouseListener() {
+        if (!listenerInitialized) {
+            JTableHeader header = table.getTableHeader();
+            header.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    handleClick(e);
+                }
+            });
+            listenerInitialized = true;
+        }
     }
 
     @Override

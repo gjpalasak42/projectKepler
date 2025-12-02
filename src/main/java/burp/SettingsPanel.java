@@ -148,7 +148,7 @@ public class SettingsPanel extends JPanel {
                 try {
                     storageManager.importAttacks(fileToOpen);
                     SwingUtilities.invokeLater(() -> 
-                        JOptionPane.showMessageDialog(SettingsPanel.this, "History imported successfully!", "Success", JOptionPane.INFORMATION_MESSAGE)
+                        JOptionPane.showMessageDialog(SettingsPanel.this, "History imported successfully! Please refresh the Attack History tab to see the imported entries.", "Success", JOptionPane.INFORMATION_MESSAGE)
                     );
                 } catch (Exception e) {
                     SwingUtilities.invokeLater(() -> 

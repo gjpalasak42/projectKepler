@@ -181,8 +181,33 @@ public class StorageManager {
             
             if (importedAttacks != null && !importedAttacks.isEmpty()) {
                 List<AttackEntry> currentAttacks = loadAttacks();
-                currentAttacks.addAll(importedAttacks);
-                saveAll(currentAttacks);
+                
+                // Collect existing IDs to prevent duplicates
+                java.util.Set<String> existingIds = new java.util.HashSet<>();
+                for (AttackEntry entry : currentAttacks) {
+                    if (entry.getId() != null) {
+                        existingIds.add(entry.getId());
+                    }
+                }
+                
+                // Filter and add only unique imported entries
+                List<AttackEntry> uniqueNewAttacks = new java.util.ArrayList<>();
+                for (AttackEntry imported : importedAttacks) {
+                    // Ensure the entry has an ID
+                    if (imported.getId() == null || imported.getId().isEmpty()) {
+                        imported.ensureId();
+                    }
+                    // Only add if ID doesn't already exist
+                    if (!existingIds.contains(imported.getId())) {
+                        uniqueNewAttacks.add(imported);
+                        existingIds.add(imported.getId()); // Track to prevent duplicates within import file
+                    }
+                }
+                
+                if (!uniqueNewAttacks.isEmpty()) {
+                    currentAttacks.addAll(uniqueNewAttacks);
+                    saveAll(currentAttacks);
+                }
             }
         }
     }

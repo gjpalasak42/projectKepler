@@ -21,6 +21,10 @@ public class AttackEntry {
     private String status;   // e.g., "Vulnerable", "Safe"
     private String notes;
 
+    // Deletion Logic - declared before constructor usage
+    private String id;
+    private boolean deleted;
+
     public AttackEntry(IHttpRequestResponse messageInfo, IExtensionHelpers helpers, String testerName, String category, String status, String notes) {
         this.id = java.util.UUID.randomUUID().toString();
         this.deleted = false;
@@ -73,10 +77,7 @@ public class AttackEntry {
     public void setStatus(String status) { this.status = status; }
     public void setNotes(String notes) { this.notes = notes; }
 
-    // Deletion Logic
-    private String id;
-    private boolean deleted;
-
+    // Deletion Logic getters/setters
     public String getId() { return id; }
     public boolean isDeleted() { return deleted; }
     public void setDeleted(boolean deleted) { this.deleted = deleted; }
