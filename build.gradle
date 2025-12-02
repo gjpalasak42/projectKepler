@@ -8,7 +8,7 @@ java {
 }
 
 group 'com.burpextension'
-version '1.0-SNAPSHOT'
+version '1.2.x'
 
 repositories {
     mavenCentral()
@@ -16,7 +16,8 @@ repositories {
 
 dependencies {
     // Burp Extender API
-    implementation 'net.portswigger.burp.extender:burp-extender-api:2.3'
+    compileOnly 'net.portswigger.burp.extender:burp-extender-api:2.3'
+    testImplementation 'net.portswigger.burp.extender:burp-extender-api:2.3'
     
     // Gson for JSON storage
     implementation 'com.google.code.gson:gson:2.10.1'

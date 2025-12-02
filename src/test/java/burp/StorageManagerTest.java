@@ -59,4 +59,95 @@ class StorageManagerTest {
         List<AttackEntry> loaded = storageManager.loadAttacks();
         assertTrue(loaded.isEmpty());
     }
+
+    @Test
+    void testExportAttacks() throws Exception {
+        // Setup mock data
+        IExtensionHelpers mockHelpers = mock(IExtensionHelpers.class);
+        IHttpRequestResponse mockMessage = mock(IHttpRequestResponse.class);
+        AttackEntry entry = new AttackEntry(mockMessage, mockHelpers, "Tester1", "SQLi", "Vulnerable", "My Notes");
+        storageManager.saveAttack(entry);
+
+        // Export
+        File exportFile = new File(tempFile.getParent(), "export.json");
+        storageManager.exportAttacks(exportFile);
+
+        // Verify file exists and has content
+        assertTrue(exportFile.exists());
+        assertTrue(exportFile.length() > 0);
+    }
+
+    @Test
+    void testImportAttacks() throws Exception {
+        // Create a file to import
+        File importFile = new File(tempFile.getParent(), "import.json");
+        try (PrintWriter writer = new PrintWriter(importFile)) {
+            writer.println("[{\"host\":\"example.com\",\"port\":80,\"protocol\":\"http\",\"method\":\"GET\",\"url\":\"http://example.com/\",\"timestamp\":1234567890,\"testerName\":\"Importer\",\"category\":\"XSS\",\"status\":\"Fixed\",\"notes\":\"Imported note\"}]");
+        }
+
+        // Import
+        storageManager.importAttacks(importFile);
+
+        // Verify loaded
+        List<AttackEntry> loaded = storageManager.loadAttacks();
+        assertEquals(1, loaded.size());
+        assertEquals("Importer", loaded.get(0).getTesterName());
+        assertEquals("Imported note", loaded.get(0).getNotes());
+    }
+
+    @Test
+    void testImportInvalidFile() {
+        File invalidFile = new File(tempFile.getParent(), "nonexistent.json");
+        assertThrows(java.io.FileNotFoundException.class, () -> storageManager.importAttacks(invalidFile));
+    }
+
+
+    @Test
+    void testIdPersistence() throws Exception {
+        // Create a file with an entry missing an ID
+        try (PrintWriter writer = new PrintWriter(tempFile)) {
+            writer.println("[{\"host\":\"example.com\",\"testerName\":\"Legacy\",\"category\":\"XSS\",\"status\":\"Fixed\",\"notes\":\"Legacy note\"}]");
+        }
+
+        // Load - should generate ID and save it
+        List<AttackEntry> loaded = storageManager.loadAttacks();
+        assertEquals(1, loaded.size());
+        String id = loaded.get(0).getId();
+        assertNotNull(id);
+        assertFalse(id.isEmpty());
+
+        // Reload - should have same ID
+        List<AttackEntry> reloaded = storageManager.loadAttacks();
+        assertEquals(1, reloaded.size());
+        assertEquals(id, reloaded.get(0).getId());
+    }
+
+    @Test
+    void testImportPreventsDuplicates() throws Exception {
+        // First import a file with a specific ID
+        File importFile = new File(tempFile.getParent(), "import.json");
+        String testId = "test-id-12345";
+        try (PrintWriter writer = new PrintWriter(importFile)) {
+            writer.println("[{\"id\":\"" + testId + "\",\"host\":\"example.com\",\"port\":80,\"protocol\":\"http\",\"method\":\"GET\",\"url\":\"http://example.com/\",\"timestamp\":1234567890,\"testerName\":\"Importer1\",\"category\":\"XSS\",\"status\":\"Fixed\",\"notes\":\"First import\"}]");
+        }
+        
+        storageManager.importAttacks(importFile);
+        
+        // Verify first import succeeded
+        List<AttackEntry> afterFirstImport = storageManager.loadAttacks();
+        assertEquals(1, afterFirstImport.size());
+        assertEquals("Importer1", afterFirstImport.get(0).getTesterName());
+        
+        // Import the same file again (duplicate ID)
+        try (PrintWriter writer = new PrintWriter(importFile)) {
+            writer.println("[{\"id\":\"" + testId + "\",\"host\":\"example.com\",\"port\":80,\"protocol\":\"http\",\"method\":\"GET\",\"url\":\"http://example.com/\",\"timestamp\":1234567890,\"testerName\":\"Importer2\",\"category\":\"XSS\",\"status\":\"Fixed\",\"notes\":\"Second import - should be skipped\"}]");
+        }
+        
+        storageManager.importAttacks(importFile);
+        
+        // Verify duplicate was not added
+        List<AttackEntry> afterSecondImport = storageManager.loadAttacks();
+        assertEquals(1, afterSecondImport.size());
+        assertEquals("Importer1", afterSecondImport.get(0).getTesterName()); // Should still be the first import
+    }
 }
