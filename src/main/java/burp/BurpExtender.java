@@ -111,10 +111,10 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
         attackTable = new JTable(tableModel);
         attackTable.setAutoCreateRowSorter(true);
         
-        // Set checkbox column width and header
+        // CheckBoxHeader disabled due to causing freeze on load
         attackTable.getColumnModel().getColumn(0).setMaxWidth(30);
         attackTable.getColumnModel().getColumn(0).setMinWidth(30);
-        attackTable.getColumnModel().getColumn(0).setHeaderRenderer(new CheckBoxHeader(attackTable, 0));
+        // attackTable.getColumnModel().getColumn(0).setHeaderRenderer(new CheckBoxHeader(attackTable, 0));
         
         // Context Menu for Table
         JPopupMenu tablePopup = new JPopupMenu();
@@ -198,7 +198,8 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
     
     private void updateToolbarState() {
         boolean isTrashMode = trashToggle.isSelected();
-        deleteButton.setVisible(!isTrashMode);
+        deleteButton.setText(isTrashMode ? "Delete Permanently" : "Delete Selected");
+        deleteButton.setVisible(true);
         restoreButton.setVisible(isTrashMode);
         emptyTrashButton.setVisible(isTrashMode);
         
@@ -230,6 +231,14 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, ITab, I
 
         // Capture toggle state on the EDT before running background task
         final boolean isTrashMode = trashToggle.isSelected();
+        
+        if (isTrashMode) {
+            int confirm = JOptionPane.showConfirmDialog(mainPanel,
+                "Are you sure you want to permanently delete the selected items?",
+                "Confirm Permanent Delete",
+                JOptionPane.YES_NO_OPTION);
+            if (confirm != JOptionPane.YES_OPTION) return;
+        }
         
         backgroundExecutor.execute(() -> {
             List<AttackEntry> allAttacks = storageManager.loadAttacks();
