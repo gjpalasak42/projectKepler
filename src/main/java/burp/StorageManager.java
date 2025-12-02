@@ -27,8 +27,6 @@ public class StorageManager {
         List<AttackEntry> attacks = loadAttacks();
         attacks.add(entry);
         saveAll(attacks);
-        cachedAttacks = attacks;
-        lastLoadedTime = storageFile.lastModified();
     }
 
     private long lastLoadedTime = 0;
