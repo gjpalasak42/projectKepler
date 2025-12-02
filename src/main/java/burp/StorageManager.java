@@ -76,8 +76,6 @@ public class StorageManager {
 
     public synchronized void overwriteAttacks(List<AttackEntry> attacks) {
         saveAll(attacks);
-        cachedAttacks = new ArrayList<>(attacks);
-        lastLoadedTime = storageFile.lastModified();
     }
 
     public synchronized List<AttackEntry> deleteAttacks(Set<String> ids, boolean permanent) {
