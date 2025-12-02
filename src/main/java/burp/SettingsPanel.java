@@ -4,16 +4,19 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 public class SettingsPanel extends JPanel {
     private final StorageManager storageManager;
+    private final ExecutorService backgroundExecutor;
     private final JTextField testerNameField;
     private final JTextArea categoriesArea;
     private final JTextArea statusesArea;
 
-    public SettingsPanel(StorageManager storageManager) {
+    public SettingsPanel(StorageManager storageManager, ExecutorService backgroundExecutor) {
         this.storageManager = storageManager;
+        this.backgroundExecutor = backgroundExecutor;
         setLayout(new BorderLayout());
 
         // Form Panel
@@ -56,15 +59,21 @@ public class SettingsPanel extends JPanel {
         buttonPanel.add(saveButton);
         add(buttonPanel, BorderLayout.SOUTH);
 
-        // Load initial values
-        loadSettings();
+        // Load initial values asynchronously
+        loadSettingsAsync();
     }
 
-    private void loadSettings() {
-        ExtensionConfig config = storageManager.loadConfig();
-        testerNameField.setText(config.getTesterName());
-        categoriesArea.setText(String.join("\n", config.getCategories()));
-        statusesArea.setText(String.join("\n", config.getStatuses()));
+    private void loadSettingsAsync() {
+        // Load config off the EDT to prevent UI blocking during initialization
+        backgroundExecutor.execute(() -> {
+            ExtensionConfig config = storageManager.loadConfig();
+            // Update UI on the EDT
+            SwingUtilities.invokeLater(() -> {
+                testerNameField.setText(config.getTesterName());
+                categoriesArea.setText(String.join("\n", config.getCategories()));
+                statusesArea.setText(String.join("\n", config.getStatuses()));
+            });
+        });
     }
 
     private void saveSettings() {
@@ -83,7 +92,12 @@ public class SettingsPanel extends JPanel {
             .collect(Collectors.toList());
         config.setStatuses(statuses);
 
-        storageManager.saveConfig(config);
-        JOptionPane.showMessageDialog(this, "Settings Saved!", "Success", JOptionPane.INFORMATION_MESSAGE);
+        // Save config off the EDT
+        backgroundExecutor.execute(() -> {
+            storageManager.saveConfig(config);
+            SwingUtilities.invokeLater(() -> 
+                JOptionPane.showMessageDialog(SettingsPanel.this, "Settings Saved!", "Success", JOptionPane.INFORMATION_MESSAGE)
+            );
+        });
     }
 }
