@@ -1,12 +1,14 @@
 # Gradle
 .gradle
 build/
+out/
 
 # Java
 *.class
 *.war
 *.ear
 *.hs_err_pid*
+*.log
 
 # JARs (except gradle wrapper)
 *.jar
@@ -18,11 +20,33 @@ build/
 *.iws
 *.ipr
 
+# Eclipse
+.classpath
+.project
+.settings/
+
+# NetBeans
+nbproject/
+nb-configuration.xml
+
 # VS Code
 .vscode/
 
 # Mac
 .DS_Store
 
+# Windows
+Thumbs.db
+ehthumbs.db
+
+# Linux
+*~
+
+# Environment files (do not commit secrets)
+.env
+.env.local
+.env.*.local
+
 # Burp Extension specific
 .burp_attack_history.json
+.burp_attack_history_config.json

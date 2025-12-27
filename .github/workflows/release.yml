@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew build
+
+      - name: Run tests
+        run: ./gradlew test
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Generate SHA256 checksums
+        run: |
+          cd build/libs
+          for file in *.jar; do
+            sha256sum "$file" > "$file.sha256"
+          done
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/libs/*.jar
+            build/libs/*.sha256
+          body: |
+            ## Project Kepler v${{ steps.version.outputs.VERSION }}
+            
+            ### Installation
+            1. Download `projectKepler-${{ steps.version.outputs.VERSION }}.jar`
+            2. Open Burp Suite → Extensions → Installed → Add
+            3. Select Extension type: Java
+            4. Select the downloaded JAR file
+            
+            ### Verify Download (SHA256)
+            ```bash
+            sha256sum -c projectKepler-${{ steps.version.outputs.VERSION }}.jar.sha256
+            ```
+            
+            ### Compatibility
+            - **Burp Suite**: Professional/Community Edition
+            - **Java**: 17 or higher
+            
+            See [README](https://github.com/${{ github.repository }}/blob/main/README.md) for full documentation.
+          draft: false
+          prerelease: false
+          generate_release_notes: true
