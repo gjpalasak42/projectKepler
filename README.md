@@ -29,8 +29,15 @@
 1. Go to the [Releases](../../releases) page
 2. Download the latest `projectKepler-X.X.X.jar` file
 3. Verify the download using the SHA256 checksum:
+   
+   **Linux/macOS:**
    ```bash
    sha256sum -c projectKepler-X.X.X.jar.sha256
+   ```
+   
+   **Windows (PowerShell):**
+   ```powershell
+   (Get-FileHash projectKepler-X.X.X.jar -Algorithm SHA256).Hash -eq (Get-Content projectKepler-X.X.X.jar.sha256).Split()[0]
    ```
 
 ### Option 2: Build from Source
@@ -42,7 +49,7 @@
 #### Build Steps
 1.  Clone the repository:
     ```bash
-    git clone https://github.com/gjpalasak42/projectKepler.git
+    git clone <repository-url>
     cd projectKepler
     ```
 2.  Build the project using the Gradle wrapper:
