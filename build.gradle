@@ -8,7 +8,16 @@ java {
 }
 
 group 'com.burpextension'
-version '1.2.x'
+version '1.2.0'
+
+// Dependency versions - pinned for reproducible builds
+ext {
+    burpExtenderApiVersion = '2.3'
+    gsonVersion = '2.13.1'
+    junitVersion = '5.10.2'
+    junitPlatformVersion = '1.10.2'
+    mockitoVersion = '5.18.0'
+}
 
 repositories {
     mavenCentral()
@@ -16,17 +25,18 @@ repositories {
 
 dependencies {
     // Burp Extender API
-    compileOnly 'net.portswigger.burp.extender:burp-extender-api:2.3'
-    testImplementation 'net.portswigger.burp.extender:burp-extender-api:2.3'
+    compileOnly "net.portswigger.burp.extender:burp-extender-api:${burpExtenderApiVersion}"
+    testImplementation "net.portswigger.burp.extender:burp-extender-api:${burpExtenderApiVersion}"
     
     // Gson for JSON storage
-    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation "com.google.code.gson:gson:${gsonVersion}"
     
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    testImplementation 'org.mockito:mockito-core:5.11.0'
-    testImplementation 'org.mockito:mockito-junit-jupiter:5.11.0'
+    // Testing
+    testImplementation "org.junit.jupiter:junit-jupiter-api:${junitVersion}"
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${junitVersion}"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher:${junitPlatformVersion}"
+    testImplementation "org.mockito:mockito-core:${mockitoVersion}"
+    testImplementation "org.mockito:mockito-junit-jupiter:${mockitoVersion}"
 }
 
 test {
@@ -36,5 +46,21 @@ test {
 jar {
     from {
         configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    
+    // Handle duplicate entries from dependencies
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    
+    // Enable reproducible builds
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+    
+    manifest {
+        attributes(
+            'Implementation-Title': project.name,
+            'Implementation-Version': project.version,
+            'Built-By': 'Gradle',
+            'Build-Jdk': System.getProperty('java.version')
+        )
     }
 }
