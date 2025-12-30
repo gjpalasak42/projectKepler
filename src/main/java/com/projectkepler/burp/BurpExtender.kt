@@ -110,7 +110,7 @@ class BurpExtender : BurpExtension {
         historyPanel.add(toolbar, BorderLayout.NORTH)
 
         // Table Setup
-        tableModel = AttackTableModel()
+        tableModel = AttackTableModel(storageManager)
         attackTable = JTable(tableModel)
         attackTable.autoCreateRowSorter = true
 
@@ -122,11 +122,84 @@ class BurpExtender : BurpExtension {
             minWidth = 30
         }
 
-        // Context Menu for Table
-        val tablePopup = JPopupMenu()
-        tablePopup.add(JMenuItem("Delete").apply { addActionListener { deleteSelected() } })
-        tablePopup.add(JMenuItem("Restore").apply { addActionListener { restoreSelected() } })
-        attackTable.componentPopupMenu = tablePopup
+        // Cell Editors
+        val config = storageManager.loadConfig()
+        
+        // Status Editor
+        val statusCombo = JComboBox(config.statuses.toTypedArray())
+        attackTable.columnModel.getColumn(5).cellEditor = DefaultCellEditor(statusCombo)
+
+        // Category Editor
+        val categoryEditor = MultiSelectEditor(attackTable, config.categories)
+        attackTable.columnModel.getColumn(2).cellEditor = categoryEditor
+
+        // Custom Context Menu Logic
+        attackTable.componentPopupMenu = null // Remove default
+        attackTable.addMouseListener(object : java.awt.event.MouseAdapter() {
+            override fun mouseReleased(e: java.awt.event.MouseEvent) {
+                if (e.isPopupTrigger) showMenu(e)
+            }
+            override fun mousePressed(e: java.awt.event.MouseEvent) {
+                if (e.isPopupTrigger) showMenu(e)
+            }
+
+            private fun showMenu(e: java.awt.event.MouseEvent) {
+                val row = attackTable.rowAtPoint(e.point)
+                
+                // Smart Selection: If clicking on a row NOT in the current visual selection, 
+                // clear others and select only this one.
+                if (row >= 0 && !attackTable.isRowSelected(row)) {
+                    attackTable.setRowSelectionInterval(row, row)
+                }
+
+                val menu = JPopupMenu()
+                
+                // Burp Actions
+                menu.add(JMenuItem("Send to Repeater").apply {
+                    addActionListener {
+                        processContextSelection { entry ->
+                            entry.getRequestBytes()?.let { req ->
+                                api.repeater().sendToRepeater(
+                                    HttpRequest.httpRequest(burp.api.montoya.core.ByteArray.byteArray(*req)),
+                                    entry.url // Name
+                                )
+                            }
+                        }
+                    }
+                })
+                
+                menu.add(JMenuItem("Send to Intruder").apply {
+                    addActionListener {
+                        processContextSelection { entry ->
+                             entry.getRequestBytes()?.let { req ->
+                                val service = burp.api.montoya.http.HttpService.httpService(entry.host, entry.port, entry.protocol == "https")
+                                val request = HttpRequest.httpRequest(service, burp.api.montoya.core.ByteArray.byteArray(*req))
+                                api.intruder().sendToIntruder(request)
+                            }
+                        }
+                    }
+                })
+                
+                menu.addSeparator()
+
+                // Management Actions
+                val isTrashMode = trashToggle.isSelected
+                if (isTrashMode) {
+                    menu.add(JMenuItem("Restore").apply { 
+                         addActionListener { restoreSelected(getContextSelectedIds()) } 
+                    })
+                    menu.add(JMenuItem("Delete Permanently").apply { 
+                        addActionListener { deleteSelected(getContextSelectedIds()) } 
+                    })
+                } else {
+                    menu.add(JMenuItem("Delete").apply { 
+                        addActionListener { deleteSelected(getContextSelectedIds()) } 
+                    })
+                }
+
+                menu.show(e.component, e.x, e.y)
+            }
+        })
 
         // Request/Response Viewers using Montoya UI factory
         requestViewer = api.userInterface().createHttpRequestEditor()
@@ -254,15 +327,14 @@ class BurpExtender : BurpExtension {
         }
     }
 
-    private fun deleteSelected() {
-        val selectedIds = tableModel.getSelectedIds()
-        if (selectedIds.isEmpty()) return
+    private fun deleteSelected(ids: Set<String> = tableModel.getSelectedIds()) {
+        if (ids.isEmpty()) return
 
         val isTrashMode = trashToggle.isSelected
         if (isTrashMode) {
             val confirm = JOptionPane.showConfirmDialog(
                 mainPanel,
-                "Permanently delete ${selectedIds.size} items?",
+                "Permanently delete ${ids.size} items?",
                 "Confirm Delete",
                 JOptionPane.YES_NO_OPTION
             )
@@ -270,17 +342,16 @@ class BurpExtender : BurpExtension {
         }
 
         backgroundExecutor.execute {
-            val updatedAttacks = storageManager.deleteAttacks(selectedIds, isTrashMode)
+            val updatedAttacks = storageManager.deleteAttacks(ids, isTrashMode)
             SwingUtilities.invokeLater { tableModel.setAttacks(updatedAttacks) }
         }
     }
 
-    private fun restoreSelected() {
-        val selectedIds = tableModel.getSelectedIds()
-        if (selectedIds.isEmpty()) return
+    private fun restoreSelected(ids: Set<String> = tableModel.getSelectedIds()) {
+        if (ids.isEmpty()) return
 
         backgroundExecutor.execute {
-            val updatedAttacks = storageManager.restoreAttacks(selectedIds)
+            val updatedAttacks = storageManager.restoreAttacks(ids)
             SwingUtilities.invokeLater { tableModel.setAttacks(updatedAttacks) }
         }
     }
@@ -299,5 +370,31 @@ class BurpExtender : BurpExtension {
                 SwingUtilities.invokeLater { tableModel.setAttacks(updatedAttacks) }
             }
         }
+    }
+
+    private fun processSelected(action: (AttackEntry) -> Unit) {
+        val selectedIds = tableModel.getSelectedIds()
+        val attacks = tableModel.displayedAttacks.filter { it.id in selectedIds }
+        attacks.forEach { action(it) }
+    }
+    private fun processContextSelection(action: (AttackEntry) -> Unit) {
+        val selectedRows = attackTable.selectedRows
+        if (selectedRows.isEmpty()) return
+
+        val attacks = selectedRows.toList().mapNotNull { viewRow ->
+            val modelRow = attackTable.convertRowIndexToModel(viewRow)
+            tableModel.getAttackAt(modelRow)
+        }
+        attacks.forEach { action(it) }
+    }
+
+    private fun getContextSelectedIds(): Set<String> {
+        val selectedRows = attackTable.selectedRows
+        if (selectedRows.isEmpty()) return emptySet()
+
+        return selectedRows.toList().mapNotNull { viewRow ->
+            val modelRow = attackTable.convertRowIndexToModel(viewRow)
+            tableModel.getAttackAt(modelRow)?.id
+        }.toSet()
     }
 }
