@@ -1,21 +1,26 @@
-name: CI
+name: "CodeQL Advanced Security"
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    # Run at 2:30 AM UTC every Monday
+    - cron: "30 2 * * 1"
 
 permissions:
+  actions: read
   contents: read
-  checks: write
+  security-events: write
 
 jobs:
-  build-and-test:
+  analyze:
+    name: Analyze Java/Kotlin
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up JDK 21
@@ -31,7 +36,14 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Clean up legacy Java test files (migration)
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java-kotlin
+          # Optionally specify queries to run
+          # queries: security-extended,security-and-quality
+
+      - name: Clean up legacy Java files (migration)
         run: |
           # Remove old Java tests that reference deprecated Burp Extender API
           # This is needed during the Java → Kotlin migration
@@ -44,40 +56,10 @@ jobs:
             rm -rf src/main/java/burp
           fi
 
-      - name: Run Tests
-        run: ./gradlew test --info
-
-      - name: Publish Test Report
-        uses: mikepenz/action-junit-report@v4
-        if: always()
-        with:
-          report_paths: "**/build/test-results/test/TEST-*.xml"
-          check_name: Test Results
-          detailed_summary: true
-          include_passed: true
-
       - name: Build with Gradle
-        run: ./gradlew build
+        run: ./gradlew clean build --no-daemon
 
-      - name: Build Fat JAR
-        run: ./gradlew shadowJar
-
-      - name: Verify JAR exists
-        run: |
-          ls -lh build/libs/
-          test -f build/libs/projectKepler-*.jar
-
-      - name: Upload Test Results
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
         with:
-          name: test-results
-          path: build/test-results/
-          retention-days: 30
-
-      - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: projectKepler-jar
-          path: build/libs/projectKepler-*.jar
-          retention-days: 7
+          category: "/language:java-kotlin"

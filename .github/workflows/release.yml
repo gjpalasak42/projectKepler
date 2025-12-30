@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
   contents: write
@@ -11,16 +11,17 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
-          distribution: 'temurin'
+          java-version: "21"
+          distribution: "temurin"
+          # Note: JDK 21 runs Gradle, but build.gradle targets Java 17 bytecode via toolchain
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -28,48 +29,46 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build with Gradle
-        run: ./gradlew build
-
-      - name: Run tests
+      - name: Run Tests
         run: ./gradlew test
 
-      - name: Get version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      - name: Build Fat JAR
+        run: ./gradlew shadowJar
 
-      - name: Generate SHA256 checksums
+      - name: Generate SHA-256 Checksum
+        id: checksum
         run: |
           cd build/libs
-          for file in *.jar; do
-            sha256sum "$file" > "$file.sha256"
-          done
+          # Find the shadow/fat jar (v1.2.1.jar) and generate checksum
+          JAR_FILE=$(ls *.jar | grep -v "plain" | head -n 1)
+          SHA256=$(sha256sum "$JAR_FILE" | awk '{ print $1 }')
+          echo "jar_file=$JAR_FILE" >> $GITHUB_OUTPUT
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+          echo "$SHA256" > "$JAR_FILE.sha256"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            build/libs/*.jar
-            build/libs/*.sha256
+            build/libs/${{ steps.checksum.outputs.jar_file }}
+            build/libs/${{ steps.checksum.outputs.jar_file }}.sha256
+          generate_release_notes: true
           body: |
-            ## Project Kepler v${{ steps.version.outputs.VERSION }}
-            
-            ### Installation
-            1. Download `projectKepler-${{ steps.version.outputs.VERSION }}.jar`
-            2. Open Burp Suite → Extensions → Installed → Add
-            3. Select Extension type: Java
-            4. Select the downloaded JAR file
-            
-            ### Verify Download (SHA256)
+            ## Integrity Verification (SHA-256)
+
+            Verify the integrity of the extension JAR using the following checksum:
+
+            `$SHA256`: `${{ steps.checksum.outputs.sha256 }}`
+
+            **Command (Linux/macOS):**
             ```bash
-            sha256sum -c projectKepler-${{ steps.version.outputs.VERSION }}.jar.sha256
+            echo "${{ steps.checksum.outputs.sha256 }}  ${{ steps.checksum.outputs.jar_file }}" | sha256sum -c
             ```
-            
-            ### Compatibility
-            - **Burp Suite**: Professional/Community Edition
-            - **Java**: 17 or higher
-            
-            See [README](https://github.com/${{ github.repository }}/blob/main/README.md) for full documentation.
+
+            ### Build Information
+            - **JDK Version:** 21 (Temurin)
+            - **API:** Burp Montoya API
+            - **Artifact:** `${{ steps.checksum.outputs.jar_file }}` (Fat JAR)
+            - **Tests:** All tests passed ✅
           draft: false
           prerelease: false
-          generate_release_notes: true

@@ -50,3 +50,6 @@ ehthumbs.db
 # Burp Extension specific
 .burp_attack_history.json
 .burp_attack_history_config.json
+
+# Backup and template files
+*.bak
