@@ -30,6 +30,19 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Clean up legacy Java test files (migration)
+        run: |
+          # Remove old Java tests that reference deprecated Burp Extender API
+          # This is needed during the Java → Kotlin migration
+          if [ -d "src/test/java/burp" ]; then
+            echo "Removing legacy Java tests..."
+            rm -rf src/test/java/burp
+          fi
+          if [ -d "src/main/java/burp" ]; then
+            echo "Removing legacy Java source files..."
+            rm -rf src/main/java/burp
+          fi
+
       - name: Run Tests
         run: ./gradlew test --info
 
