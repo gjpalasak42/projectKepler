@@ -5,7 +5,40 @@ plugins {
 }
 
 group 'com.burpextension'
-version '1.2.1'
+
+// Automatically detect version from git tags
+def getVersionFromGit() {
+    try {
+        def process = ['git', 'describe', '--tags', '--exact-match', 'HEAD'].execute()
+        process.waitFor()
+        if (process.exitValue() == 0) {
+            def gitTag = process.text.trim()
+            if (gitTag.startsWith('v')) {
+                return gitTag.substring(1) // Remove 'v' prefix
+            }
+            return gitTag
+        }
+    } catch (Exception e) {
+        // Not on a tag
+    }
+
+    // Fallback: use branch name + SNAPSHOT
+    try {
+        def branchProcess = ['git', 'rev-parse', '--abbrev-ref', 'HEAD'].execute()
+        branchProcess.waitFor()
+        def branch = branchProcess.text.trim()
+
+        def hashProcess = ['git', 'rev-parse', '--short', 'HEAD'].execute()
+        hashProcess.waitFor()
+        def shortHash = hashProcess.text.trim()
+
+        return "${branch}-${shortHash}-SNAPSHOT"
+    } catch (Exception ex) {
+        return '0.0.0-SNAPSHOT'
+    }
+}
+
+version = getVersionFromGit()
 
 java {
     toolchain {
