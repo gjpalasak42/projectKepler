@@ -30,6 +30,17 @@ class StorageManager(
         saveAll(attacks)
     }
 
+    @Synchronized
+
+    fun updateAttack(entry: AttackEntry) {
+        val attacks = loadAttacks()
+        val index = attacks.indexOfFirst { it.id == entry.id }
+        if (index != -1) {
+            attacks[index] = entry
+            saveAll(attacks)
+        }
+    }
+
     /**
      * Loads attacks from disk with a caching strategy based on file modification time.
      * Why: Burp UI can trigger multiple refreshes; caching prevents redundant parsing of potentially large JSON files.
