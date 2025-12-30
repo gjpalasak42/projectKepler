@@ -372,29 +372,19 @@ class BurpExtender : BurpExtension {
         }
     }
 
-    private fun processSelected(action: (AttackEntry) -> Unit) {
-        val selectedIds = tableModel.getSelectedIds()
-        val attacks = tableModel.displayedAttacks.filter { it.id in selectedIds }
-        attacks.forEach { action(it) }
-    }
-    private fun processContextSelection(action: (AttackEntry) -> Unit) {
-        val selectedRows = attackTable.selectedRows
-        if (selectedRows.isEmpty()) return
 
-        val attacks = selectedRows.toList().mapNotNull { viewRow ->
+    private fun getContextSelectedAttacks(): List<AttackEntry> {
+        return attackTable.selectedRows.toList().mapNotNull { viewRow ->
             val modelRow = attackTable.convertRowIndexToModel(viewRow)
             tableModel.getAttackAt(modelRow)
         }
-        attacks.forEach { action(it) }
+    }
+
+    private fun processContextSelection(action: (AttackEntry) -> Unit) {
+        getContextSelectedAttacks().forEach(action)
     }
 
     private fun getContextSelectedIds(): Set<String> {
-        val selectedRows = attackTable.selectedRows
-        if (selectedRows.isEmpty()) return emptySet()
-
-        return selectedRows.toList().mapNotNull { viewRow ->
-            val modelRow = attackTable.convertRowIndexToModel(viewRow)
-            tableModel.getAttackAt(modelRow)?.id
-        }.toSet()
+        return getContextSelectedAttacks().map { it.id }.toSet()
     }
 }
