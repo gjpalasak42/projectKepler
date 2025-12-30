@@ -59,11 +59,17 @@ class StorageManagerTest : BehaviorSpec({
         // Prepare state
         tempStorageFile.writeText("")
         val entry1 = AttackEntry(
+            id = java.util.UUID.randomUUID().toString(),
             host = "site1.com", port = 80, protocol = "http", method = "GET", url = "/",
             requestBase64 = null, responseBase64 = null, testerName = "User",
             category = "A", status = "Open", notes = ""
         )
-        val entry2 = entry1.copy(id = java.util.UUID.randomUUID().toString(), host = "site2.com")
+        val entry2 = AttackEntry(
+            id = java.util.UUID.randomUUID().toString(),
+            host = "site2.com", port = 80, protocol = "http", method = "GET", url = "/",
+            requestBase64 = null, responseBase64 = null, testerName = "User",
+            category = "A", status = "Open", notes = ""
+        )
         storageManager.saveAttack(entry1)
         storageManager.saveAttack(entry2)
 

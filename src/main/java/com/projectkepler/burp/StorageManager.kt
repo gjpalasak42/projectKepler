@@ -31,6 +31,7 @@ class StorageManager(
     }
 
     @Synchronized
+
     fun updateAttack(entry: AttackEntry) {
         val attacks = loadAttacks()
         val index = attacks.indexOfFirst { it.id == entry.id }
