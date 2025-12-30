@@ -115,15 +115,15 @@ class SettingsPanel(
         val config = ExtensionConfig()
         config.testerName = testerNameField.text.trim()
 
-        val categories = categoriesArea.text.split("\n".toRegex())
+        val categories = categoriesArea.text.lines()
             .map { it.trim() }
-            .filter { it.isNotEmpty() }
+            .filter { it.isNotBlank() }
             .toMutableList()
         config.categories = categories
 
-        val statuses = statusesArea.text.split("\n".toRegex())
+        val statuses = statusesArea.text.lines()
             .map { it.trim() }
-            .filter { it.isNotEmpty() }
+            .filter { it.isNotBlank() }
             .toMutableList()
         config.statuses = statuses
 

@@ -49,12 +49,34 @@ class StorageManager(
 
         return try {
             FileReader(storageFile).use { reader ->
-                val listType: Type = object : TypeToken<ArrayList<AttackEntry>>() {}.type
-                val attacks: MutableList<AttackEntry>? = gson.fromJson(reader, listType)
+                val mapListType: Type = object : TypeToken<ArrayList<Map<String, Any?>>>() {}.type
+                val attackMaps: MutableList<Map<String, Any?>>? = gson.fromJson(reader, mapListType)
 
-                (attacks ?: mutableListOf()).also {
-                    cachedAttacks = it.toMutableList()
-                    lastLoadedTime = lastModified
+                var modified = false
+                attackMaps?.forEach { map ->
+                    @Suppress("UNCHECKED_CAST")
+                    val mutableMap = map as? MutableMap<String, Any?> ?: return@forEach
+                    if (mutableMap["id"] == null || (mutableMap["id"] as? String).isNullOrBlank()) {
+                        mutableMap["id"] = java.util.UUID.randomUUID().toString()
+                        modified = true
+                    }
+                }
+
+                val attacks: MutableList<AttackEntry> = if (attackMaps != null) {
+                    val attacksJson = gson.toJson(attackMaps)
+                    val attackListType: Type = object : TypeToken<ArrayList<AttackEntry>>() {}.type
+                    gson.fromJson<ArrayList<AttackEntry>>(attacksJson, attackListType) ?: mutableListOf()
+                } else {
+                    mutableListOf()
+                }
+
+                if (modified) {
+                    saveAll(attacks)
+                }
+
+                attacks.also { attackList ->
+                    cachedAttacks = attackList.toMutableList()
+                    lastLoadedTime = storageFile.lastModified()
                 }
             }
         } catch (e: IOException) {
@@ -156,14 +178,30 @@ class StorageManager(
         if (!source.exists()) throw FileNotFoundException("Import file not found: ${source.absolutePath}")
 
         FileReader(source).use { reader ->
-            val listType: Type = object : TypeToken<ArrayList<AttackEntry>>() {}.type
-            val importedAttacks: List<AttackEntry>? = gson.fromJson(reader, listType)
+            val mapListType: Type = object : TypeToken<ArrayList<Map<String, Any?>>>() {}.type
+            val attackMaps: MutableList<Map<String, Any?>>? = gson.fromJson(reader, mapListType)
 
-            if (!importedAttacks.isNullOrEmpty()) {
+            attackMaps?.forEach { map ->
+                @Suppress("UNCHECKED_CAST")
+                val mutableMap = map as? MutableMap<String, Any?> ?: return@forEach
+                if (mutableMap["id"] == null || (mutableMap["id"] as? String).isNullOrBlank()) {
+                    mutableMap["id"] = java.util.UUID.randomUUID().toString()
+                }
+            }
+
+            val importedAttacks: List<AttackEntry> = if (attackMaps != null) {
+                val attacksJson = gson.toJson(attackMaps)
+                val attackListType: Type = object : TypeToken<ArrayList<AttackEntry>>() {}.type
+                gson.fromJson<ArrayList<AttackEntry>>(attacksJson, attackListType) ?: emptyList()
+            } else {
+                emptyList()
+            }
+
+            if (importedAttacks.isNotEmpty()) {
                 val currentAttacks = loadAttacks()
-                val existingIds = currentAttacks.map { it.id }.toSet()
+                val existingIds = currentAttacks.map { entry -> entry.id }.toSet()
 
-                val uniqueNewAttacks = importedAttacks.filter { it.id !in existingIds }
+                val uniqueNewAttacks = importedAttacks.filter { entry -> entry.id !in existingIds }
 
                 if (uniqueNewAttacks.isNotEmpty()) {
                     currentAttacks.addAll(uniqueNewAttacks)

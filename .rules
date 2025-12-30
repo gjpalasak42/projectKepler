@@ -16,3 +16,9 @@
 ## Output Style
 - Use "Why, Not How" logic. Explain the security implication of a code change.
 - Provide "Checklist" format for complex implementation steps.
+
+## Documentation & Explanation Rules
+- **No Auxiliary Files:** Do not create separate `.md`, `.txt`, or "explanation" files to describe your changes. 
+- **Chat-Only Summaries:** Provide all summaries, "thought processes," and change-logs strictly within the Assistant/Agent chat panel.
+- **In-Place Documentation:** If a code change requires documentation, update existing file headers or docstrings (KDoc/Javadoc) within the source files themselves.
+- **Repo Cleanliness:** Maintain a "Zero-Clutter" policy. Only create new files if they are functional components (e.g., a new Kotlin class or a configuration file) explicitly requested by the user.
