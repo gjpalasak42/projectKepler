@@ -176,7 +176,12 @@ class BurpExtender : BurpExtension {
                          * Why: Prevents potential XSS vulnerabilities within the Burp Suite UI context
                          * when viewing notes provided by other testers or imported data.
                          */
-                        val sanitizedNotes = entry.notes.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                        val sanitizedNotes = entry.notes
+                            .replace("&", "&amp;")
+                            .replace("<", "&lt;")
+                            .replace(">", "&gt;")
+                            .replace("\"", "&quot;")
+                            .replace("'", "&#x27;")
                         notesDetailArea.text = "Category: ${entry.category}\nStatus: ${entry.status}\n\n$sanitizedNotes"
                     }
                 }

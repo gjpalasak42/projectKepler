@@ -23,6 +23,7 @@ jobs:
         with:
           java-version: "21"
           distribution: "temurin"
+          # Note: JDK 21 runs Gradle, but build.gradle targets Java 17 bytecode via toolchain
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4

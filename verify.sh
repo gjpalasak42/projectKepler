@@ -59,9 +59,10 @@ else
 fi
 
 # Check JAR exists
-if [ -f "build/libs/projectKepler-1.2.1.jar" ]; then
-    JAR_SIZE=$(ls -lh build/libs/projectKepler-1.2.1.jar | awk '{print $5}')
-    echo -e "${GREEN}✅ JAR artifact: build/libs/projectKepler-1.2.1.jar ($JAR_SIZE)${NC}"
+JAR_FILE=$(find build/libs -name "projectKepler-*.jar" -not -name "*-plain.jar" | head -n 1)
+if [ -n "$JAR_FILE" ]; then
+    JAR_SIZE=$(ls -lh "$JAR_FILE" | awk '{print $5}')
+    echo -e "${GREEN}✅ JAR artifact: $JAR_FILE ($JAR_SIZE)${NC}"
 else
     echo -e "${RED}❌ JAR artifact not found${NC}"
     exit 1
@@ -70,8 +71,9 @@ echo ""
 
 echo "🔐 Step 5: Generating SHA-256 checksum..."
 cd build/libs
-SHA256=$(shasum -a 256 projectKepler-1.2.1.jar | awk '{print $1}')
-echo "$SHA256" > projectKepler-1.2.1.jar.sha256
+JAR_BASENAME=$(basename "$JAR_FILE")
+SHA256=$(shasum -a 256 "$JAR_BASENAME" | awk '{print $1}')
+echo "$SHA256" > "$JAR_BASENAME.sha256"
 echo -e "${GREEN}✅ Checksum: $SHA256${NC}"
 cd - > /dev/null
 echo ""
