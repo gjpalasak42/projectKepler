@@ -1,0 +1,556 @@
+package com.projectkepler.burp
+
+import burp.api.montoya.logging.Logging
+import io.mockk.*
+import io.strikt.api.expectThat
+import io.strikt.assertions.*
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import java.io.File
+
+/**
+ * Comprehensive tests for StorageManager.
+ * Why: Ensures thread-safe persistence, caching behavior, and data integrity.
+ * Security Implication: Validates that attack data is correctly saved/loaded without corruption.
+ */
+class StorageManagerTest {
+
+    private lateinit var tempDir: File
+    private lateinit var storageFile: File
+    private lateinit var configFile: File
+    private lateinit var mockLogging: Logging
+    private lateinit var storageManager: StorageManager
+
+    @BeforeEach
+    fun setup() {
+        tempDir = createTempDir()
+        storageFile = File(tempDir, "test-attacks.json")
+        configFile = File(tempDir, "test-config.json")
+        mockLogging = mockk(relaxed = true)
+        storageManager = StorageManager(
+            storageFile.absolutePath,
+            configFile.absolutePath,
+            mockLogging
+        )
+    }
+
+    @AfterEach
+    fun cleanup() {
+        tempDir.deleteRecursively()
+    }
+
+    @Test
+    fun `should save and load a single attack`() {
+        val attack = AttackEntry(
+            id = "test-123",
+            host = "example.com",
+            port = 443,
+            protocol = "https",
+            method = "POST",
+            url = "/api/login",
+            requestBase64 = "QUJD",
+            responseBase64 = "REVG",
+            testerName = "alice",
+            category = "SQL Injection",
+            status = "Vulnerable",
+            notes = "SQL injection in username field"
+        )
+
+        storageManager.saveAttack(attack)
+        val loaded = storageManager.loadAttacks()
+
+        // Why: Verify single attack persistence works correctly
+        expectThat(loaded).hasSize(1)
+        expectThat(loaded.first()) {
+            get { id }.isEqualTo("test-123")
+            get { host }.isEqualTo("example.com")
+            get { method }.isEqualTo("POST")
+            get { requestBase64 }.isEqualTo("QUJD")
+        }
+    }
+
+    @Test
+    fun `should load empty list when file does not exist`() {
+        val loaded = storageManager.loadAttacks()
+
+        // Why: Prevent crashes when storage file doesn't exist yet
+        expectThat(loaded).isEmpty()
+    }
+
+    @Test
+    fun `should cache attacks after first load`() {
+        val attack = AttackEntry(
+            id = "cache-test",
+            host = "cached.com",
+            port = 80,
+            protocol = "http",
+            method = "GET",
+            url = "/",
+            requestBase64 = null,
+            responseBase64 = null,
+            testerName = "bob",
+            category = "XSS",
+            status = "Safe",
+            notes = ""
+        )
+
+        storageManager.saveAttack(attack)
+
+        // First load - reads from disk
+        val loaded1 = storageManager.loadAttacks()
+
+        // Second load - should use cache (file not modified)
+        val loaded2 = storageManager.loadAttacks()
+
+        // Why: Verify caching prevents redundant disk I/O
+        expectThat(loaded1).hasSize(1)
+        expectThat(loaded2).hasSize(1)
+        expectThat(loaded1.first().id).isEqualTo(loaded2.first().id)
+    }
+
+    @Test
+    fun `should reload from disk if file modified`() {
+        val attack1 = AttackEntry(
+            id = "first",
+            host = "example.com",
+            port = 443,
+            protocol = "https",
+            method = "GET",
+            url = "/",
+            requestBase64 = null,
+            responseBase64 = null,
+            testerName = "tester",
+            category = "CSRF",
+            status = "Safe",
+            notes = "First entry"
+        )
+
+        storageManager.saveAttack(attack1)
+        val loaded1 = storageManager.loadAttacks()
+
+        // Simulate external modification by creating new manager instance
+        val storageManager2 = StorageManager(
+            storageFile.absolutePath,
+            configFile.absolutePath,
+            mockLogging
+        )
+
+        val attack2 = AttackEntry(
+            id = "second",
+            host = "newsite.com",
+            port = 443,
+            protocol = "https",
+            method = "POST",
+            url = "/api",
+            requestBase64 = null,
+            responseBase64 = null,
+            testerName = "tester2",
+            category = "IDOR",
+            status = "Vulnerable",
+            notes = "Second entry"
+        )
+
+        storageManager2.saveAttack(attack2)
+
+        // Original manager should reload from disk
+        val loaded2 = storageManager.loadAttacks()
+
+        // Why: Verify cache invalidation when file is modified externally
+        expectThat(loaded2).hasSize(2)
+    }
+
+    @Test
+    fun `should mark attacks as deleted without removing them`() {
+        val attack1 = AttackEntry(
+            id = "delete-1",
+            host = "target1.com",
+            port = 443,
+            protocol = "https",
+            method = "GET",
+            url = "/",
+            requestBase64 = null,
+            responseBase64 = null,
+            testerName = "tester",
+            category = "XSS",
+            status = "Safe",
+            notes = ""
+        )
+
+        val attack2 = AttackEntry(
+            id = "delete-2",
+            host = "target2.com",
+            port = 443,
+            protocol = "https",
+            method = "GET",
+            url = "/",
+            requestBase64 = null,
+            responseBase64 = null,
+            testerName = "tester",
+            category = "SQL Injection",
+            status = "Safe",
+            notes = ""
+        )
+
+        storageManager.saveAttack(attack1)
+        storageManager.saveAttack(attack2)
+
+        // Soft delete (permanent = false)
+        val remaining = storageManager.deleteAttacks(setOf("delete-1"), permanent = false)
+
+        // Why: Verify soft delete marks as deleted but doesn't remove
+        // Security Implication: Allows recovery of accidentally deleted attacks
+        expectThat(remaining).hasSize(2)
+        expectThat(remaining.find { it.id == "delete-1" }?.deleted).isTrue()
+        expectThat(remaining.find { it.id == "delete-2" }?.deleted).isFalse()
+    }
+
+    @Test
+    fun `should permanently remove attacks`() {
+        val attack = AttackEntry(
+            id = "permanent-delete",
+            host = "example.com",
+            port = 443,
+            protocol = "https",
+            method = "DELETE",
+            url = "/api/users/1",
+            requestBase64 = null,
+            responseBase64 = null,
+            testerName = "admin",
+            category = "Auth Bypass",
+            status = "Vulnerable",
+            notes = "Unauthorized deletion"
+        )
+
+        storageManager.saveAttack(attack)
+        val beforeDelete = storageManager.loadAttacks()
+        expectThat(beforeDelete).hasSize(1)
+
+        // Hard delete (permanent = true)
+        val afterDelete = storageManager.deleteAttacks(setOf("permanent-delete"), permanent = true)
+
+        // Why: Verify permanent deletion removes entry completely
+        expectThat(afterDelete).isEmpty()
+    }
+
+    @Test
+    fun `should restore deleted attacks`() {
+        val attack = AttackEntry(
+            id = "restore-test",
+            host = "restore.com",
+            port = 443,
+            protocol = "https",
+            method = "GET",
+            url = "/",
+            requestBase64 = null,
+            responseBase64 = null,
+            testerName = "tester",
+            category = "RCE",
+            status = "Vulnerable",
+            notes = "Test restoration"
+        )
+
+        storageManager.saveAttack(attack)
+        storageManager.deleteAttacks(setOf("restore-test"), permanent = false)
+
+        val deletedState = storageManager.loadAttacks()
+        expectThat(deletedState.first().deleted).isTrue()
+
+        // Restore the attack
+        val restored = storageManager.restoreAttacks(setOf("restore-test"))
+
+        // Why: Verify restore operation unmarks deleted flag
+        expectThat(restored.first().deleted).isFalse()
+    }
+
+    @Test
+    fun `should empty trash removing all deleted attacks`() {
+        val attack1 = AttackEntry(
+            id = "trash-1",
+            host = "trash1.com",
+            port = 443,
+            protocol = "https",
+            method = "GET",
+            url = "/",
+            requestBase64 = null,
+            responseBase64 = null,
+            testerName = "tester",
+            category = "Other",
+            status = "Safe",
+            notes = ""
+        )
+
+        val attack2 = AttackEntry(
+            id = "trash-2",
+            host = "trash2.com",
+            port = 443,
+            protocol = "https",
+            method = "GET",
+            url = "/",
+            requestBase64 = null,
+            responseBase64 = null,
+            testerName = "tester",
+            category = "Other",
+            status = "Safe",
+            notes = ""
+        )
+
+        val attack3 = AttackEntry(
+            id = "keep-3",
+            host = "keep3.com",
+            port = 443,
+            protocol = "https",
+            method = "GET",
+            url = "/",
+            requestBase64 = null,
+            responseBase64 = null,
+            testerName = "tester",
+            category = "Other",
+            status = "Safe",
+            notes = ""
+        )
+
+        storageManager.saveAttack(attack1)
+        storageManager.saveAttack(attack2)
+        storageManager.saveAttack(attack3)
+
+        storageManager.deleteAttacks(setOf("trash-1", "trash-2"), permanent = false)
+
+        val afterEmpty = storageManager.emptyTrash()
+
+        // Why: Verify empty trash removes only deleted entries
+        expectThat(afterEmpty).hasSize(1)
+        expectThat(afterEmpty.first().id).isEqualTo("keep-3")
+    }
+
+    @Test
+    fun `should save and load configuration`() {
+        val config = ExtensionConfig(
+            testerName = "CustomTester",
+            categories = mutableListOf("API", "Mobile"),
+            statuses = mutableListOf("Open", "Closed")
+        )
+
+        storageManager.saveConfig(config)
+        val loaded = storageManager.loadConfig()
+
+        // Why: Verify configuration persistence works correctly
+        expectThat(loaded.testerName).isEqualTo("CustomTester")
+        expectThat(loaded.categories).containsExactly("API", "Mobile")
+        expectThat(loaded.statuses).containsExactly("Open", "Closed")
+    }
+
+    @Test
+    fun `should return default config when file does not exist`() {
+        val loaded = storageManager.loadConfig()
+
+        // Why: Prevent crashes when config file doesn't exist
+        expectThat(loaded.testerName).isEqualTo("Tester")
+        expectThat(loaded.categories).isNotEmpty()
+    }
+
+    @Test
+    fun `should export attacks to file`() {
+        val attack = AttackEntry(
+            id = "export-test",
+            host = "export.com",
+            port = 443,
+            protocol = "https",
+            method = "GET",
+            url = "/",
+            requestBase64 = "QUJD",
+            responseBase64 = "REVG",
+            testerName = "exporter",
+            category = "Information Disclosure",
+            status = "Vulnerable",
+            notes = "Export test"
+        )
+
+        storageManager.saveAttack(attack)
+
+        val exportFile = File(tempDir, "exported.json")
+        storageManager.exportAttacks(exportFile)
+
+        // Why: Verify export creates valid JSON file
+        expectThat(exportFile.exists()).isTrue()
+        expectThat(exportFile.length()).isGreaterThan(0)
+
+        // Verify exported content is loadable
+        val importManager = StorageManager(
+            exportFile.absolutePath,
+            File(tempDir, "dummy-config.json").absolutePath,
+            mockLogging
+        )
+        val imported = importManager.loadAttacks()
+        expectThat(imported).hasSize(1)
+        expectThat(imported.first().id).isEqualTo("export-test")
+    }
+
+    @Test
+    fun `should import attacks from file`() {
+        val importFile = File(tempDir, "import.json")
+        val importManager = StorageManager(
+            importFile.absolutePath,
+            File(tempDir, "import-config.json").absolutePath,
+            mockLogging
+        )
+
+        val attack = AttackEntry(
+            id = "import-test",
+            host = "import.com",
+            port = 443,
+            protocol = "https",
+            method = "POST",
+            url = "/api",
+            requestBase64 = null,
+            responseBase64 = null,
+            testerName = "importer",
+            category = "CSRF",
+            status = "Safe",
+            notes = "Import test"
+        )
+
+        importManager.saveAttack(attack)
+
+        // Import into main storage
+        storageManager.importAttacks(importFile)
+
+        val loaded = storageManager.loadAttacks()
+
+        // Why: Verify import merges data correctly
+        expectThat(loaded).hasSize(1)
+        expectThat(loaded.first().id).isEqualTo("import-test")
+    }
+
+    @Test
+    fun `should skip duplicate attacks during import`() {
+        val attack = AttackEntry(
+            id = "duplicate-id",
+            host = "duplicate.com",
+            port = 443,
+            protocol = "https",
+            method = "GET",
+            url = "/",
+            requestBase64 = null,
+            responseBase64 = null,
+            testerName = "tester",
+            category = "XSS",
+            status = "Safe",
+            notes = "Original"
+        )
+
+        // Save to main storage
+        storageManager.saveAttack(attack)
+
+        // Create import file with same ID but different notes
+        val importFile = File(tempDir, "import-dup.json")
+        val importManager = StorageManager(
+            importFile.absolutePath,
+            File(tempDir, "import-dup-config.json").absolutePath,
+            mockLogging
+        )
+
+        val duplicateAttack = attack.copy(notes = "Modified")
+        importManager.saveAttack(duplicateAttack)
+
+        // Import should skip duplicate
+        storageManager.importAttacks(importFile)
+
+        val loaded = storageManager.loadAttacks()
+
+        // Why: Verify import doesn't overwrite existing attacks
+        // Security Implication: Prevents accidental data loss during import
+        expectThat(loaded).hasSize(1)
+        expectThat(loaded.first().notes).isEqualTo("Original")
+    }
+
+    @Test
+    fun `should handle multiple delete operations on same attack`() {
+        val attack = AttackEntry(
+            id = "multi-delete",
+            host = "test.com",
+            port = 443,
+            protocol = "https",
+            method = "GET",
+            url = "/",
+            requestBase64 = null,
+            responseBase64 = null,
+            testerName = "tester",
+            category = "Other",
+            status = "Safe",
+            notes = ""
+        )
+
+        storageManager.saveAttack(attack)
+
+        // Delete twice
+        storageManager.deleteAttacks(setOf("multi-delete"), permanent = false)
+        val result = storageManager.deleteAttacks(setOf("multi-delete"), permanent = false)
+
+        // Why: Verify idempotent delete operations
+        expectThat(result.first().deleted).isTrue()
+    }
+
+    @Test
+    fun `should handle restore of non-deleted attack gracefully`() {
+        val attack = AttackEntry(
+            id = "not-deleted",
+            host = "test.com",
+            port = 443,
+            protocol = "https",
+            method = "GET",
+            url = "/",
+            requestBase64 = null,
+            responseBase64 = null,
+            testerName = "tester",
+            category = "Other",
+            status = "Safe",
+            notes = ""
+        )
+
+        storageManager.saveAttack(attack)
+
+        // Restore without deleting first
+        val result = storageManager.restoreAttacks(setOf("not-deleted"))
+
+        // Why: Verify restore is safe for non-deleted entries
+        expectThat(result.first().deleted).isFalse()
+    }
+
+    @Test
+    fun `should log errors when save fails`() {
+        // Create read-only directory to trigger save failure
+        val readOnlyDir = File(tempDir, "readonly")
+        readOnlyDir.mkdirs()
+        readOnlyDir.setWritable(false)
+
+        val failingStorage = StorageManager(
+            File(readOnlyDir, "test.json").absolutePath,
+            File(readOnlyDir, "config.json").absolutePath,
+            mockLogging
+        )
+
+        val attack = AttackEntry(
+            id = "fail-test",
+            host = "test.com",
+            port = 443,
+            protocol = "https",
+            method = "GET",
+            url = "/",
+            requestBase64 = null,
+            responseBase64 = null,
+            testerName = "tester",
+            category = "Other",
+            status = "Safe",
+            notes = ""
+        )
+
+        failingStorage.saveAttack(attack)
+
+        // Why: Verify error logging occurs on save failure
+        verify(atLeast = 1) { mockLogging.logToError(any<String>()) }
+
+        // Cleanup
+        readOnlyDir.setWritable(true)
+    }
+}

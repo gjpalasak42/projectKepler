@@ -2,26 +2,27 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, grant-movetokotlin]
   pull_request:
     branches: [main]
 
 permissions:
   contents: read
+  checks: write
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
-          distribution: 'temurin'
+          java-version: "21"
+          distribution: "temurin"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -29,15 +30,40 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Run Tests
+        run: ./gradlew test --info
+
+      - name: Publish Test Report
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: "**/build/test-results/test/TEST-*.xml"
+          check_name: Test Results
+          detailed_summary: true
+          include_passed: true
+
       - name: Build with Gradle
         run: ./gradlew build
 
-      - name: Run tests
-        run: ./gradlew test
+      - name: Build Fat JAR
+        run: ./gradlew shadowJar
 
-      - name: Upload build artifact
+      - name: Verify JAR exists
+        run: |
+          ls -lh build/libs/
+          test -f build/libs/projectKepler-*.jar
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: build/test-results/
+          retention-days: 30
+
+      - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: projectKepler-jar
-          path: build/libs/*.jar
+          path: build/libs/projectKepler-*.jar
           retention-days: 7

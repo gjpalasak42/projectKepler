@@ -1,0 +1,188 @@
+package com.projectkepler.burp
+
+import io.kotest.core.spec.style.FunSpec
+import io.strikt.api.expectThat
+import io.strikt.assertions.*
+
+/**
+ * Tests for ExtensionConfig data class.
+ * Why: Ensures configuration defaults are correct and mutable lists function properly.
+ * Security Implication: Validates that user preferences don't break extension functionality.
+ */
+class ExtensionConfigTest : FunSpec({
+
+    test("should initialize with default tester name") {
+        val config = ExtensionConfig()
+
+        expectThat(config.testerName).isEqualTo("Tester")
+    }
+
+    test("should initialize with default categories") {
+        val config = ExtensionConfig()
+
+        expectThat(config.categories).containsExactlyInAnyOrder(
+            "SQL Injection",
+            "XSS",
+            "CSRF",
+            "IDOR",
+            "Auth Bypass",
+            "RCE",
+            "Information Disclosure",
+            "Other"
+        )
+    }
+
+    test("should initialize with default statuses") {
+        val config = ExtensionConfig()
+
+        expectThat(config.statuses).containsExactlyInAnyOrder(
+            "Vulnerable",
+            "Safe",
+            "Needs Investigation"
+        )
+    }
+
+    test("should allow custom tester name") {
+        val config = ExtensionConfig(testerName = "CustomTester")
+
+        expectThat(config.testerName).isEqualTo("CustomTester")
+    }
+
+    test("should allow modifying tester name after initialization") {
+        val config = ExtensionConfig()
+        config.testerName = "ModifiedTester"
+
+        expectThat(config.testerName).isEqualTo("ModifiedTester")
+    }
+
+    test("should allow adding custom categories") {
+        val config = ExtensionConfig()
+        val originalSize = config.categories.size
+
+        config.categories.add("Custom Attack")
+
+        // Why: Verify mutable list allows extending attack categories
+        expectThat(config.categories).hasSize(originalSize + 1)
+        expectThat(config.categories).contains("Custom Attack")
+    }
+
+    test("should allow removing categories") {
+        val config = ExtensionConfig()
+
+        config.categories.remove("Other")
+
+        expectThat(config.categories).doesNotContain("Other")
+    }
+
+    test("should allow adding custom statuses") {
+        val config = ExtensionConfig()
+
+        config.statuses.add("Exploited")
+
+        expectThat(config.statuses).contains("Exploited")
+    }
+
+    test("should allow removing statuses") {
+        val config = ExtensionConfig()
+
+        config.statuses.remove("Safe")
+
+        expectThat(config.statuses).doesNotContain("Safe")
+    }
+
+    test("should support custom categories list") {
+        val customCategories = mutableListOf("WebSocket", "GraphQL")
+        val config = ExtensionConfig(categories = customCategories)
+
+        expectThat(config.categories).containsExactly("WebSocket", "GraphQL")
+    }
+
+    test("should support custom statuses list") {
+        val customStatuses = mutableListOf("Fixed", "Won't Fix")
+        val config = ExtensionConfig(statuses = customStatuses)
+
+        expectThat(config.statuses).containsExactly("Fixed", "Won't Fix")
+    }
+
+    test("should handle empty categories list") {
+        val config = ExtensionConfig(categories = mutableListOf())
+
+        // Why: Ensure empty list doesn't break extension
+        expectThat(config.categories).isEmpty()
+    }
+
+    test("should handle empty statuses list") {
+        val config = ExtensionConfig(statuses = mutableListOf())
+
+        expectThat(config.statuses).isEmpty()
+    }
+
+    test("should handle special characters in tester name") {
+        val config = ExtensionConfig(testerName = "Tester <script>alert(1)</script>")
+
+        // Why: Verify config stores raw input (sanitization happens at UI layer)
+        expectThat(config.testerName).contains("<script>")
+    }
+
+    test("data class should provide working equals") {
+        val config1 = ExtensionConfig(
+            testerName = "Alice",
+            categories = mutableListOf("XSS", "CSRF"),
+            statuses = mutableListOf("Vulnerable")
+        )
+
+        val config2 = ExtensionConfig(
+            testerName = "Alice",
+            categories = mutableListOf("XSS", "CSRF"),
+            statuses = mutableListOf("Vulnerable")
+        )
+
+        expectThat(config1).isEqualTo(config2)
+    }
+
+    test("data class should detect inequality when testerName differs") {
+        val config1 = ExtensionConfig(testerName = "Alice")
+        val config2 = ExtensionConfig(testerName = "Bob")
+
+        expectThat(config1).isNotEqualTo(config2)
+    }
+
+    test("should allow complete category replacement") {
+        val config = ExtensionConfig()
+        val newCategories = mutableListOf("API", "Mobile", "Cloud")
+
+        config.categories = newCategories
+
+        expectThat(config.categories).containsExactly("API", "Mobile", "Cloud")
+        expectThat(config.categories).doesNotContain("SQL Injection")
+    }
+
+    test("should allow complete status replacement") {
+        val config = ExtensionConfig()
+        val newStatuses = mutableListOf("Open", "Closed", "Pending")
+
+        config.statuses = newStatuses
+
+        expectThat(config.statuses).containsExactly("Open", "Closed", "Pending")
+        expectThat(config.statuses).doesNotContain("Vulnerable")
+    }
+
+    test("should handle duplicate categories gracefully") {
+        val config = ExtensionConfig()
+        config.categories.add("XSS")
+
+        // Why: List allows duplicates - UI should handle deduplication if needed
+        expectThat(config.categories.count { it == "XSS" }).isEqualTo(2)
+    }
+
+    test("should maintain category order when modified") {
+        val config = ExtensionConfig(categories = mutableListOf())
+
+        config.categories.add("First")
+        config.categories.add("Second")
+        config.categories.add("Third")
+
+        // Why: Verify insertion order is preserved for UI display
+        expectThat(config.categories).containsExactly("First", "Second", "Third")
+    }
+})

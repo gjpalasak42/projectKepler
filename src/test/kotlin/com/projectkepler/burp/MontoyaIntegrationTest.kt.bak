@@ -1,0 +1,388 @@
+package com.projectkepler.burp
+
+import burp.api.montoya.MontoyaApi
+import burp.api.montoya.core.ByteArray
+import burp.api.montoya.http.message.HttpRequestResponse
+import burp.api.montoya.http.message.requests.HttpRequest
+import burp.api.montoya.http.message.responses.HttpResponse
+import burp.api.montoya.http.HttpService
+import io.kotest.core.spec.style.FunSpec
+import io.mockk.*
+import io.strikt.api.expectThat
+import io.strikt.assertions.*
+
+/**
+ * Integration tests for Montoya API interaction.
+ * Why: Validates that we correctly extract attack data from Montoya's HttpRequestResponse objects.
+ * Security Implication: Ensures we capture all relevant attack metadata from Burp traffic.
+ */
+class MontoyaIntegrationTest : FunSpec({
+
+    test("should create AttackEntry from HttpRequestResponse with response") {
+        // Mock HttpService
+        val mockHttpService = mockk<HttpService> {
+            every { host() } returns "example.com"
+            every { port() } returns 443
+            every { secure() } returns true
+        }
+
+        // Mock HttpRequest
+        val requestBytes =
+            "POST /api/login HTTP/1.1\r\nHost: example.com\r\n\r\nusername=admin&password=test".toByteArray()
+        val mockByteArray = mockk<ByteArray> {
+            every { getBytes() } returns requestBytes
+        }
+
+        val mockRequest = mockk<HttpRequest> {
+            every { method() } returns "POST"
+            every { url() } returns "https://example.com/api/login"
+            every { toByteArray() } returns mockByteArray
+        }
+
+        // Mock HttpResponse
+        val responseBytes = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"success\":true}".toByteArray()
+        val mockResponseByteArray = mockk<ByteArray> {
+            every { getBytes() } returns responseBytes
+        }
+
+        val mockResponse = mockk<HttpResponse> {
+            every { toByteArray() } returns mockResponseByteArray
+        }
+
+        // Mock HttpRequestResponse
+        val mockRequestResponse = mockk<HttpRequestResponse> {
+            every { httpService() } returns mockHttpService
+            every { request() } returns mockRequest
+            every { response() } returns mockResponse
+        }
+
+        // Create AttackEntry using secondary constructor
+        val entry = AttackEntry(
+            message = mockRequestResponse,
+            testerName = "alice",
+            category = "SQL Injection",
+            status = "Vulnerable",
+            notes = "SQL injection in username parameter"
+        )
+
+        // Why: Verify correct extraction of HTTP metadata
+        expectThat(entry) {
+            get { host }.isEqualTo("example.com")
+            get { port }.isEqualTo(443)
+            get { protocol }.isEqualTo("https")
+            get { method }.isEqualTo("POST")
+            get { url }.isEqualTo("https://example.com/api/login")
+            get { testerName }.isEqualTo("alice")
+            get { category }.isEqualTo("SQL Injection")
+            get { status }.isEqualTo("Vulnerable")
+            get { notes }.isEqualTo("SQL injection in username parameter")
+        }
+
+        // Why: Verify Base64 encoding preserves request/response data
+        expectThat(entry.getRequestBytes()).isEqualTo(requestBytes)
+        expectThat(entry.getResponseBytes()).isEqualTo(responseBytes)
+    }
+
+    test("should handle null response in HttpRequestResponse") {
+        val mockHttpService = mockk<HttpService> {
+            every { host() } returns "target.com"
+            every { port() } returns 80
+            every { secure() } returns false
+        }
+
+        val requestBytes = "GET / HTTP/1.1\r\nHost: target.com\r\n\r\n".toByteArray()
+        val mockByteArray = mockk<ByteArray> {
+            every { getBytes() } returns requestBytes
+        }
+
+        val mockRequest = mockk<HttpRequest> {
+            every { method() } returns "GET"
+            every { url() } returns "http://target.com/"
+            every { toByteArray() } returns mockByteArray
+        }
+
+        val mockRequestResponse = mockk<HttpRequestResponse> {
+            every { httpService() } returns mockHttpService
+            every { request() } returns mockRequest
+            every { response() } returns null
+        }
+
+        val entry = AttackEntry(
+            message = mockRequestResponse,
+            testerName = "bob",
+            category = "IDOR",
+            status = "Needs Investigation",
+            notes = "No response received"
+        )
+
+        // Why: Verify null response handling doesn't cause NPE
+        // Security Implication: Burp can return null for failed/timeout requests
+        expectThat(entry) {
+            get { host }.isEqualTo("target.com")
+            get { port }.isEqualTo(80)
+            get { protocol }.isEqualTo("http")
+            get { responseBase64 }.isNull()
+        }
+
+        expectThat(entry.getRequestBytes()).isNotNull()
+        expectThat(entry.getResponseBytes()).isNull()
+    }
+
+    test("should correctly identify secure vs insecure protocols") {
+        val httpsService = mockk<HttpService> {
+            every { host() } returns "secure.com"
+            every { port() } returns 443
+            every { secure() } returns true
+        }
+
+        val httpService = mockk<HttpService> {
+            every { host() } returns "insecure.com"
+            every { port() } returns 80
+            every { secure() } returns false
+        }
+
+        val mockRequest = mockk<HttpRequest> {
+            every { method() } returns "GET"
+            every { url() } returns "https://secure.com/"
+            every { toByteArray() } returns mockk {
+                every { getBytes() } returns byteArrayOf()
+            }
+        }
+
+        val httpsMessage = mockk<HttpRequestResponse> {
+            every { httpService() } returns httpsService
+            every { request() } returns mockRequest
+            every { response() } returns null
+        }
+
+        val httpMessage = mockk<HttpRequestResponse> {
+            every { httpService() } returns httpService
+            every { request() } returns mockRequest
+            every { response() } returns null
+        }
+
+        val httpsEntry = AttackEntry(
+            message = httpsMessage,
+            testerName = "tester",
+            category = "XSS",
+            status = "Safe",
+            notes = ""
+        )
+
+        val httpEntry = AttackEntry(
+            message = httpMessage,
+            testerName = "tester",
+            category = "XSS",
+            status = "Safe",
+            notes = ""
+        )
+
+        // Why: Verify correct protocol detection for security analysis
+        expectThat(httpsEntry.protocol).isEqualTo("https")
+        expectThat(httpEntry.protocol).isEqualTo("http")
+    }
+
+    test("should handle various HTTP methods") {
+        val methods = listOf("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD")
+
+        methods.forEach { method ->
+            val mockHttpService = mockk<HttpService> {
+                every { host() } returns "api.example.com"
+                every { port() } returns 443
+                every { secure() } returns true
+            }
+
+            val mockRequest = mockk<HttpRequest> {
+                every { method() } returns method
+                every { url() } returns "https://api.example.com/resource"
+                every { toByteArray() } returns mockk {
+                    every { getBytes() } returns byteArrayOf()
+                }
+            }
+
+            val mockMessage = mockk<HttpRequestResponse> {
+                every { httpService() } returns mockHttpService
+                every { request() } returns mockRequest
+                every { response() } returns null
+            }
+
+            val entry = AttackEntry(
+                message = mockMessage,
+                testerName = "tester",
+                category = "CSRF",
+                status = "Safe",
+                notes = "Testing $method"
+            )
+
+            // Why: Verify all HTTP methods are captured correctly
+            expectThat(entry.method).isEqualTo(method)
+        }
+    }
+
+    test("should handle non-standard ports") {
+        val customPort = 8443
+
+        val mockHttpService = mockk<HttpService> {
+            every { host() } returns "custom.example.com"
+            every { port() } returns customPort
+            every { secure() } returns true
+        }
+
+        val mockRequest = mockk<HttpRequest> {
+            every { method() } returns "POST"
+            every { url() } returns "https://custom.example.com:8443/api"
+            every { toByteArray() } returns mockk {
+                every { getBytes() } returns byteArrayOf()
+            }
+        }
+
+        val mockMessage = mockk<HttpRequestResponse> {
+            every { httpService() } returns mockHttpService
+            every { request() } returns mockRequest
+            every { response() } returns null
+        }
+
+        val entry = AttackEntry(
+            message = mockMessage,
+            testerName = "pentester",
+            category = "Auth Bypass",
+            status = "Vulnerable",
+            notes = "Non-standard port"
+        )
+
+        // Why: Verify non-standard ports are preserved
+        expectThat(entry.port).isEqualTo(customPort)
+    }
+
+    test("should handle large request/response bodies") {
+        // Simulate large payload (e.g., file upload)
+        val largeRequest = ByteArray(5 * 1024 * 1024) { it.toByte() } // 5MB
+        val largeResponse = ByteArray(10 * 1024 * 1024) { it.toByte() } // 10MB
+
+        val mockHttpService = mockk<HttpService> {
+            every { host() } returns "upload.example.com"
+            every { port() } returns 443
+            every { secure() } returns true
+        }
+
+        val mockRequestByteArray = mockk<ByteArray> {
+            every { getBytes() } returns largeRequest
+        }
+
+        val mockResponseByteArray = mockk<ByteArray> {
+            every { getBytes() } returns largeResponse
+        }
+
+        val mockRequest = mockk<HttpRequest> {
+            every { method() } returns "POST"
+            every { url() } returns "https://upload.example.com/upload"
+            every { toByteArray() } returns mockRequestByteArray
+        }
+
+        val mockResponse = mockk<HttpResponse> {
+            every { toByteArray() } returns mockResponseByteArray
+        }
+
+        val mockMessage = mockk<HttpRequestResponse> {
+            every { httpService() } returns mockHttpService
+            every { request() } returns mockRequest
+            every { response() } returns mockResponse
+        }
+
+        val entry = AttackEntry(
+            message = mockMessage,
+            testerName = "uploader",
+            category = "RCE",
+            status = "Vulnerable",
+            notes = "Large file upload test"
+        )
+
+        // Why: Verify large payloads are handled without corruption
+        // Security Implication: File upload attacks often involve large payloads
+        expectThat(entry.getRequestBytes()).isNotNull()
+        expectThat(entry.getRequestBytes()!!.size).isEqualTo(5 * 1024 * 1024)
+        expectThat(entry.getResponseBytes()).isNotNull()
+        expectThat(entry.getResponseBytes()!!.size).isEqualTo(10 * 1024 * 1024)
+    }
+
+    test("should handle binary content in request/response") {
+        // PNG header signature
+        val pngHeader = byteArrayOf(
+            0x89.toByte(), 0x50, 0x4E, 0x47,
+            0x0D, 0x0A, 0x1A, 0x0A
+        )
+
+        val mockHttpService = mockk<HttpService> {
+            every { host() } returns "images.example.com"
+            every { port() } returns 443
+            every { secure() } returns true
+        }
+
+        val mockRequestByteArray = mockk<ByteArray> {
+            every { getBytes() } returns pngHeader
+        }
+
+        val mockRequest = mockk<HttpRequest> {
+            every { method() } returns "POST"
+            every { url() } returns "https://images.example.com/upload"
+            every { toByteArray() } returns mockRequestByteArray
+        }
+
+        val mockMessage = mockk<HttpRequestResponse> {
+            every { httpService() } returns mockHttpService
+            every { request() } returns mockRequest
+            every { response() } returns null
+        }
+
+        val entry = AttackEntry(
+            message = mockMessage,
+            testerName = "binary-tester",
+            category = "Information Disclosure",
+            status = "Needs Investigation",
+            notes = "Binary content upload"
+        )
+
+        // Why: Verify binary content preservation through Base64
+        // Security Implication: Image/file upload vulnerabilities require exact binary preservation
+        val decoded = entry.getRequestBytes()
+        expectThat(decoded).isNotNull()
+        expectThat(decoded!!).isEqualTo(pngHeader)
+    }
+
+    test("should preserve special characters in URLs") {
+        val urlWithSpecialChars = "https://example.com/search?q=<script>alert(1)</script>&page=1"
+
+        val mockHttpService = mockk<HttpService> {
+            every { host() } returns "example.com"
+            every { port() } returns 443
+            every { secure() } returns true
+        }
+
+        val mockRequest = mockk<HttpRequest> {
+            every { method() } returns "GET"
+            every { url() } returns urlWithSpecialChars
+            every { toByteArray() } returns mockk {
+                every { getBytes() } returns byteArrayOf()
+            }
+        }
+
+        val mockMessage = mockk<HttpRequestResponse> {
+            every { httpService() } returns mockHttpService
+            every { request() } returns mockRequest
+            every { response() } returns null
+        }
+
+        val entry = AttackEntry(
+            message = mockMessage,
+            testerName = "xss-tester",
+            category = "XSS",
+            status = "Vulnerable",
+            notes = "XSS in search parameter"
+        )
+
+        // Why: Verify URL special characters are preserved for analysis
+        // Security Implication: XSS payloads often contain special characters
+        expectThat(entry.url).isEqualTo(urlWithSpecialChars)
+        expectThat(entry.url).contains("<script>")
+    }
+})

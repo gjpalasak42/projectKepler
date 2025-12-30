@@ -28,12 +28,23 @@ dependencies {
     // Gson for robust JSON serialization of attack data
     implementation "com.google.code.gson:gson:2.10.1"
 
-    // Testing suite
+    // ===== TESTING SUITE (Kotlin-First) =====
     testImplementation "net.portswigger.burp.extensions:montoya-api:2023.12.1"
+
+    // Core Testing Framework
     testImplementation "org.jetbrains.kotlin:kotlin-test-junit5"
     testImplementation "org.junit.jupiter:junit-jupiter:5.10.2"
-    testImplementation "org.mockito:mockito-core:5.11.0"
-    testImplementation "org.mockito:mockito-junit-jupiter:5.11.0"
+
+    // MockK - Kotlin-first mocking (replaces Mockito)
+    testImplementation "io.mockk:mockk:1.13.9"
+
+    // Kotest - BDD-style tests and property-based testing
+    testImplementation "io.kotest:kotest-runner-junit5:5.8.0"
+    testImplementation "io.kotest:kotest-assertions-core:5.8.0"
+    testImplementation "io.kotest:kotest-property:5.8.0"
+
+    // Strikt - Fluent assertions for Kotlin
+    testImplementation "io.strikt:strikt-core:0.34.1"
 }
 
 test {

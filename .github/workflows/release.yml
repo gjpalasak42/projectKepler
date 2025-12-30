@@ -28,6 +28,9 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Run Tests
+        run: ./gradlew test
+
       - name: Build Fat JAR
         run: ./gradlew shadowJar
 
@@ -65,5 +68,6 @@ jobs:
             - **JDK Version:** 21 (Temurin)
             - **API:** Burp Montoya API
             - **Artifact:** `${{ steps.checksum.outputs.jar_file }}` (Fat JAR)
+            - **Tests:** All tests passed ✅
           draft: false
           prerelease: false
